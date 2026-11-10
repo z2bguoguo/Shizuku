@@ -3,7 +3,6 @@ name: Build and release fork
 on:
   push:
     branches: [master]
-    paths-ignore: ['**/*.md']
   workflow_dispatch:
 
 permissions:
@@ -88,7 +87,7 @@ jobs:
       - name: Publish release in this fork
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$RELEASE_TAG" release/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Shizuku fork $RELEASE_TAG" --notes-file release/release-notes.md
+        run: gh release create "$RELEASE_TAG" release/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Shizuku fork $RELEASE_TAG" --notes-file release/release-notes.md --prerelease
       - name: Remove signing material
         if: always()
         run: rm -f key.jks signing.properties
