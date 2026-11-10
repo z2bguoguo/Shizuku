@@ -5,7 +5,6 @@ package moe.shizuku.starter;
 
 import android.app.ActivityThread;
 import android.app.Application;
-import android.app.Instrumentation;
 import android.content.Context;
 import android.content.ContextHidden;
 import android.ddm.DdmHandleAppName;
@@ -20,9 +19,9 @@ import androidx.annotation.Nullable;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 
 import dev.rikka.tools.refine.Refine;
+import rikka.hidden.compat.PackageManagerApis;
 
 public class UserServiceFactory {
 
@@ -35,13 +34,16 @@ public class UserServiceFactory {
     @Nullable
     public static Pair<IBinder, String> create(String[] args) {
         String name = null;
+        String requestedProcessName = null;
         String token = null;
         String pkg = null;
         String cls = null;
         int uid = -1;
 
         for (String arg : args) {
-            if (arg.startsWith("--debug-name=")) {
+            if (arg.startsWith("--process-name=")) {
+                requestedProcessName = arg.substring(15);
+            } else if (arg.startsWith("--debug-name=")) {
                 name = arg.substring(13);
             } else if (arg.startsWith("--token=")) {
                 token = arg.substring(8);
@@ -62,9 +64,16 @@ public class UserServiceFactory {
 
         try {
             ActivityThread activityThread = ActivityThread.systemMain();
+            String processName = requestedProcessName != null ? requestedProcessName
+                    : (name != null ? name : pkg + ":user_service");
+            android.content.pm.ApplicationInfo appInfo = PackageManagerApis.getApplicationInfoNoThrow(pkg, 0, userId);
+            if (appInfo == null) throw new IllegalStateException("Client application not found: " + pkg);
+            // Application.getProcessName/currentPackageName depend on this state. Some
+            // Xiaomi/MTK framework hooks dereference it during context/application creation.
+            Object boundData = UserServiceContext.initializeBoundApplication(activityThread, processName, appInfo);
             Context systemContext = activityThread.getSystemContext();
-
-            DdmHandleAppName.setAppName(name != null ? name : pkg + ":user_service", userId);
+            DdmHandleAppName.setAppName(processName, userId);
+            System.err.println("stage=framework-state ready process=" + processName);
 
             //noinspection InstantiationOfUtilityClass
             UserHandle userHandle = Refine.unsafeCast(
@@ -75,8 +84,9 @@ public class UserServiceFactory {
             Field mPackageInfo = context.getClass().getDeclaredField("mPackageInfo");
             mPackageInfo.setAccessible(true);
             Object loadedApk = mPackageInfo.get(context);
-            Method makeApplication = loadedApk.getClass().getDeclaredMethod("makeApplication", boolean.class, Instrumentation.class);
-            Application application = (Application) makeApplication.invoke(loadedApk, true, null);
+            UserServiceContext.setLoadedApk(boundData, loadedApk);
+            Application application = UserServiceContext.makeApplication(loadedApk, context);
+            System.err.println("stage=application-context ready");
             Field mInitialApplication = activityThread.getClass().getDeclaredField("mInitialApplication");
             mInitialApplication.setAccessible(true);
             mInitialApplication.set(activityThread, application);

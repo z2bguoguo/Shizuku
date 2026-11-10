@@ -42,7 +42,7 @@ public class ServiceStarter {
 
     private static final String USER_SERVICE_CMD_FORMAT = "(CLASSPATH='%s' %s%s /system/bin " +
             "--nice-name='%s' moe.shizuku.starter.ServiceStarter " +
-            "--token='%s' --package='%s' --class='%s' --uid=%d%s)&";
+            "--token='%s' --package='%s' --class='%s' --uid=%d --process-name='%s'%s)&";
 
     // DeathRecipient will automatically be unlinked when all references to the
     // binder is dropped, so we hold the reference here.
@@ -54,7 +54,7 @@ public class ServiceStarter {
         return String.format(Locale.ENGLISH, USER_SERVICE_CMD_FORMAT,
                 managerApkPath, appProcess, debug ? (" " + DEBUG_ARGS) : "",
                 processName,
-                token, packageName, classname, callingUid, debug ? (" " + "--debug-name=" + processName) : "");
+                token, packageName, classname, callingUid, processName, debug ? (" " + "--debug-name=" + processName) : "");
     }
 
     public static void main(String[] args) {
