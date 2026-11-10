@@ -69,7 +69,7 @@ jobs:
         run: |
           python3 tests/check_fork.py
           chmod +x gradlew
-          ./gradlew :manager:assembleRelease --stacktrace
+          ./gradlew :manager:testReleaseUnitTest :manager:assembleRelease --stacktrace
       - name: Verify APK and prepare release
         shell: bash
         run: |

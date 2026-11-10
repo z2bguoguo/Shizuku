@@ -16,6 +16,7 @@ import kotlinx.coroutines.withContext
 import moe.shizuku.manager.R
 import moe.shizuku.manager.app.AppBarFragmentActivity
 import moe.shizuku.manager.utils.ShizukuSystemApis
+import moe.shizuku.manager.utils.AppLabelResolver
 import rikka.shizuku.Shizuku
 import rikka.shizuku.server.ServerConstants
 
@@ -63,6 +64,7 @@ class BlacklistFragment : PreferenceFragmentCompat() {
     private var query = ""
 
     override fun onCreatePreferences(state: Bundle?, rootKey: String?) {
+        query = state?.getString("query").orEmpty()
         preferenceScreen = preferenceManager.createPreferenceScreen(requireContext())
         val info = Preference(requireContext()).apply {
             title = getString(R.string.sdk_blacklist_title)
@@ -77,6 +79,9 @@ class BlacklistFragment : PreferenceFragmentCompat() {
         }
         preferenceScreen.addPreference(save)
         preferenceScreen.addPreference(EditTextPreference(requireContext()).apply {
+            key = "sdk_blacklist_search"
+            text = query
+            summary = query
             title = getString(R.string.sdk_blacklist_search)
             isPersistent = false
             setOnPreferenceChangeListener { _, value ->
@@ -93,12 +98,12 @@ class BlacklistFragment : PreferenceFragmentCompat() {
                 val result = withContext(Dispatchers.IO) {
                     check(Shizuku.pingBinder()) { getString(R.string.sdk_blacklist_not_running) }
                     val blocked = SdkBlacklist.get()
-                    val pm = requireContext().packageManager
+                    val context = requireContext().applicationContext
                     val all = ShizukuSystemApis.getUsers(false).flatMap { user ->
                         ShizukuSystemApis.getInstalledPackages(0, user.id)
                     }.filter { it.packageName != requireContext().packageName }
                     val entries = all.distinctBy { it.packageName }.map {
-                        App(it.packageName, it.applicationInfo?.loadLabel(pm)?.toString() ?: it.packageName)
+                        App(it.packageName, it.applicationInfo?.let { ai -> AppLabelResolver.load(context, ai) } ?: it.packageName)
                     }.toMutableList()
                     // Keep removed/unavailable packages visible so old rules can be cleared.
                     blocked.filter { name -> entries.none { it.name == name } }.forEach { entries.add(App(it, it)) }
@@ -154,6 +159,7 @@ class BlacklistFragment : PreferenceFragmentCompat() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        outState.putString("query", query)
         outState.putStringArrayList("selected", ArrayList(selected))
     }
 }

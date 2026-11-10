@@ -16,6 +16,7 @@ import moe.shizuku.manager.authorization.AuthorizationManager
 import moe.shizuku.manager.databinding.AppListItemBinding
 import moe.shizuku.manager.ktx.toHtml
 import moe.shizuku.manager.utils.AppIconCache
+import moe.shizuku.manager.utils.AppLabelResolver
 import moe.shizuku.manager.utils.ShizukuSystemApis
 import moe.shizuku.manager.utils.UserHandleCompat
 import rikka.html.text.HtmlCompat
@@ -84,11 +85,12 @@ class AppViewHolder(private val binding: AppListItemBinding) : BaseViewHolder<Pa
         val pm = itemView.context.packageManager
         val userId = UserHandleCompat.getUserId(uid)
         icon.setImageDrawable(ai.loadIcon(pm))
+        val label = AppLabelResolver.load(itemView.context, ai)
         name.text = if (userId != UserHandleCompat.myUserId()) {
             val userInfo = ShizukuSystemApis.getUserInfo(userId)
-            "${ai.loadLabel(pm)} - ${userInfo.name} ($userId)"
+            "${label} - ${userInfo.name} ($userId)"
         } else {
-            ai.loadLabel(pm)
+            label
         }
         pkg.text = ai.packageName
         switchWidget.isChecked = AuthorizationManager.granted(packageName, uid)

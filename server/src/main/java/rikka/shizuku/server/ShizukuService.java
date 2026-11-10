@@ -107,7 +107,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
         }
 
         assert ai != null;
-        managerAppId = ai.uid;
+        managerAppId = UserHandleCompat.getAppId(ai.uid);
 
         configManager = getConfigManager();
         clientManager = getClientManager();
@@ -122,8 +122,10 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
         BinderSender.register(this);
 
         mainHandler.post(() -> {
-            sendBinderToClient();
+            // User services return through the manager provider. Make it ready before
+            // waking clients that may immediately start a user service.
             sendBinderToManager();
+            sendBinderToClient();
         });
     }
 
@@ -199,7 +201,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
         int callingPid = Binder.getCallingPid();
         int callingUid = Binder.getCallingUid();
         boolean isManager;
-        ClientRecord clientRecord = null;
+        ClientRecord clientRecord;
 
         List<String> packages = PackageManagerApis.getPackagesForUidNoThrow(callingUid);
         if (!packages.contains(requestPackageName)) {
@@ -209,14 +211,15 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 
         isManager = MANAGER_APPLICATION_ID.equals(requestPackageName);
 
-        if (clientManager.findClient(callingUid, callingPid) == null) {
-            synchronized (this) {
+        synchronized (this) {
+            clientRecord = clientManager.findClient(callingUid, callingPid);
+            if (clientRecord == null) {
                 clientRecord = clientManager.addClient(callingUid, callingPid, application, requestPackageName, apiVersion);
             }
-            if (clientRecord == null) {
-                LOGGER.w("Add client failed");
-                return;
-            }
+        }
+        if (clientRecord == null) {
+            LOGGER.w("Add client failed");
+            return;
         }
 
         LOGGER.d("attachApplication: %s %d %d", requestPackageName, callingUid, callingPid);
@@ -457,6 +460,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
     }
 
     public boolean isSdkBlocked(int uid) {
+        if (UserHandleCompat.getAppId(uid) < 10000) return false;
         if (UserHandleCompat.getAppId(uid) == UserHandleCompat.getAppId(managerAppId)) return false;
         return configManager.isSdkBlocked(PackageManagerApis.getPackagesForUidNoThrow(uid));
     }
