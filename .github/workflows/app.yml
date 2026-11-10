@@ -59,8 +59,8 @@ jobs:
           PY
             echo 'SIGNING_MODE=custom-keystore' >> "$GITHUB_ENV"
           else
-            mkdir -p "$HOME/.android"
-            keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -dname 'CN=Fork Build,O=Android,C=US' -keyalg RSA -keysize 2048 -validity 10000
+            keytool -genkeypair -keystore "$GITHUB_WORKSPACE/key.jks" -storepass android -alias androiddebugkey -keypass android -dname 'CN=Fork Build,O=Android,C=US' -keyalg RSA -keysize 2048 -validity 10000
+            printf '%s\n' 'KEYSTORE_FILE=../key.jks' 'KEYSTORE_PASSWORD=android' 'KEYSTORE_ALIAS=androiddebugkey' 'KEYSTORE_ALIAS_PASSWORD=android' > signing.properties
             echo 'SIGNING_MODE=ephemeral-build-key' >> "$GITHUB_ENV"
           fi
       - name: Install build tools
