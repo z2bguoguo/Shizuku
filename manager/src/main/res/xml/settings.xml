@@ -2,6 +2,8 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
 
     <PreferenceCategory android:title="@string/privacy_title">
+        <Preference android:key="connection_diagnostics" android:title="@string/connection_diagnostics_title"
+            android:summary="@string/connection_diagnostics_summary" />
         <Preference android:key="sdk_blacklist" android:title="@string/sdk_blacklist_title"
             android:summary="@string/sdk_blacklist_summary" />
         <rikka.material.preference.MaterialSwitchPreference android:key="hide_launcher"

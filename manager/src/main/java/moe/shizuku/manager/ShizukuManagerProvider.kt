@@ -1,5 +1,6 @@
 package moe.shizuku.manager
 
+import android.os.Binder
 import android.os.Bundle
 import androidx.core.os.bundleOf
 import moe.shizuku.api.BinderContainer
@@ -33,6 +34,18 @@ class ShizukuManagerProvider : ShizukuProvider() {
                 val token = extras.getString(USER_SERVICE_ARG_TOKEN) ?: return null
                 val binder = extras.getParcelable<BinderContainer>(EXTRA_BINDER)?.binder ?: return null
 
+                // Complete the common path on this provider thread. A queued shared
+                // worker can miss clients such as GKD that only wait three seconds.
+                if (Shizuku.pingBinder()) {
+                    val identity = Binder.clearCallingIdentity()
+                    try {
+                        Shizuku.attachUserService(binder, bundleOf(USER_SERVICE_ARG_TOKEN to token))
+                        return bundleOf(EXTRA_BINDER to BinderContainer(Shizuku.getBinder()))
+                    } finally {
+                        Binder.restoreCallingIdentity(identity)
+                    }
+                }
+
                 val countDownLatch = CountDownLatch(1)
                 var reply: Bundle? = Bundle()
 
@@ -45,7 +58,7 @@ class ShizukuManagerProvider : ShizukuProvider() {
                             ))
                             reply!!.putParcelable(EXTRA_BINDER, BinderContainer(Shizuku.getBinder()))
                         } catch (e: Throwable) {
-                            LOGGER.e(e, "attachUserService $token")
+                            LOGGER.e(e, "attachUserService failed")
                             reply = null
                         }
 

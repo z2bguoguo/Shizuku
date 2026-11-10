@@ -74,6 +74,7 @@ public class ServiceStarter {
             return;
         }
 
+        Log.i(TAG, "User service created; connecting to manager provider");
         service = result.first;
         token = result.second;
 
@@ -81,6 +82,7 @@ public class ServiceStarter {
             System.exit(1);
         }
 
+        Log.i(TAG, "User service Binder handed to server");
         Looper.loop();
         System.exit(0);
 

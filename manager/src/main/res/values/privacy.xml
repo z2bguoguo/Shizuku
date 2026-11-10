@@ -14,4 +14,8 @@
     <string name="hide_launcher_title">Hide launcher icon</string>
     <string name="hide_launcher_summary">Hide the home screen entry. Does not hide the installed package or running service.</string>
     <string name="hide_launcher_confirm">After hiding, open App info → Additional settings in the app (if available), or run: adb shell am start -n %1$s/moe.shizuku.manager.MainActivity . Turn this switch off to restore the icon.</string>
+    <string name="connection_diagnostics_title">Connection diagnostics</string>
+    <string name="connection_diagnostics_summary">After reproducing a connection failure, inspect or copy recent server and user-service errors.</string>
+    <string name="connection_diagnostics_not_running">Start Shizuku, reproduce the failure, and reopen this page.</string>
+    <string name="connection_diagnostics_copy">Copy diagnostics</string>
 </resources>

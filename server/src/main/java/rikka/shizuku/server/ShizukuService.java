@@ -498,6 +498,13 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
         // No SDK callback or Binder API response for a blocked UID, including cached handles.
         // Return immediately; never park a binder thread to simulate a timeout.
         if (isSdkBlocked(Binder.getCallingUid())) return false;
+        if (code == ServerConstants.BINDER_TRANSACTION_getConnectionDiagnostics) {
+            enforceManagerPermission("connectionDiagnostics");
+            data.enforceInterface(ShizukuApiConstants.BINDER_DESCRIPTOR);
+            reply.writeNoException();
+            reply.writeString(ConnectionDiagnostics.collect());
+            return true;
+        }
         if (code == ServerConstants.BINDER_TRANSACTION_getBlacklist
                 || code == ServerConstants.BINDER_TRANSACTION_setBlacklist) {
             enforceManagerPermission("sdkBlacklist");

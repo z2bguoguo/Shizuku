@@ -14,6 +14,8 @@ public class IContentProviderCompat {
 
     @Nullable
     public static Bundle call(@NonNull IContentProvider provider, @Nullable String attributeTag, @Nullable String callingPkg, @Nullable String authority, @Nullable String method, @Nullable String arg, @Nullable Bundle extras) throws RemoteException {
+        // Attribute shell IPC to its real package instead of an incomplete source.
+        if (callingPkg == null && Os.getuid() == 2000) callingPkg = "com.android.shell";
         Bundle reply;
         if (Build.VERSION.SDK_INT >= 31) {
             try {

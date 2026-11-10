@@ -85,6 +85,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 true
             }
 
+        findPreference<Preference>("connection_diagnostics")!!.setOnPreferenceClickListener {
+            moe.shizuku.manager.privacy.ConnectionDiagnostics.show(this)
+            true
+        }
         findPreference<Preference>("sdk_blacklist")!!.setOnPreferenceClickListener {
             startActivity(android.content.Intent(context, moe.shizuku.manager.privacy.BlacklistActivity::class.java))
             true

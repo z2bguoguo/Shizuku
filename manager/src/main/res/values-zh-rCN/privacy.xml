@@ -14,4 +14,8 @@
     <string name="hide_launcher_title">隐藏桌面图标</string>
     <string name="hide_launcher_summary">隐藏桌面入口，不会隐藏已安装包或运行中的服务。</string>
     <string name="hide_launcher_confirm">隐藏后可从应用详情中的“应用内的其他设置”（部分系统支持）进入，或执行：adb shell am start -n %1$s/moe.shizuku.manager.MainActivity 。关闭本开关可恢复图标。</string>
+    <string name="connection_diagnostics_title">连接诊断</string>
+    <string name="connection_diagnostics_summary">复现连接失败后，查看或复制服务端与用户服务近期异常。</string>
+    <string name="connection_diagnostics_not_running">请先启动 Shizuku，复现连接失败后再打开此页。</string>
+    <string name="connection_diagnostics_copy">复制诊断信息</string>
 </resources>
