@@ -207,3 +207,12 @@ dependencies {
 }
 
 apply from: rootProject.file('signing.gradle')
+
+// Refine only needs Android-facing classes. Preserve signed crypto dependency
+// bytecode so its original JAR signatures remain valid in JVM-based tests.
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.instrumentation.excludes.add('org/bouncycastle/**')
+        variant.unitTest?.instrumentation?.excludes?.add('org/bouncycastle/**')
+    }
+}
