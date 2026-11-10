@@ -15,7 +15,6 @@ import moe.shizuku.api.BinderContainer;
 import moe.shizuku.starter.util.IContentProviderCompat;
 import rikka.hidden.compat.ActivityManagerApis;
 import rikka.shizuku.ShizukuApiConstants;
-import rikka.shizuku.server.UserService;
 
 public class ServiceStarter {
 
@@ -59,6 +58,7 @@ public class ServiceStarter {
     }
 
     public static void main(String[] args) {
+        System.err.println("stage=process-start uid=" + android.system.Os.getuid());
         if (Looper.getMainLooper() == null) {
             Looper.prepareMainLooper();
         }
@@ -66,22 +66,26 @@ public class ServiceStarter {
         IBinder service;
         String token;
 
-        UserService.setTag(TAG);
-        Pair<IBinder, String> result = UserService.create(args);
+        UserServiceFactory.setTag(TAG);
+        Pair<IBinder, String> result = UserServiceFactory.create(args);
 
         if (result == null) {
+            System.err.println("stage=create-service failed");
             System.exit(1);
             return;
         }
 
+        System.err.println("stage=create-service ok; stage=manager-handoff starting");
         Log.i(TAG, "User service created; connecting to manager provider");
         service = result.first;
         token = result.second;
 
         if (!sendBinder(service, token)) {
+            System.err.println("stage=manager-handoff failed");
             System.exit(1);
         }
 
+        System.err.println("stage=manager-handoff ok; service ready");
         Log.i(TAG, "User service Binder handed to server");
         Looper.loop();
         System.exit(0);
@@ -102,6 +106,7 @@ public class ServiceStarter {
         try {
             provider = ActivityManagerApis.getContentProviderExternal(name, userId, null, name);
             if (provider == null) {
+                System.err.println("manager provider unavailable: " + name);
                 Log.e(TAG, String.format("provider is null %s %d", name, userId));
                 return false;
             }
@@ -127,6 +132,7 @@ public class ServiceStarter {
             extra.putParcelable(EXTRA_BINDER, new BinderContainer(binder));
             extra.putString(ShizukuApiConstants.USER_SERVICE_ARG_TOKEN, token);
 
+            System.err.println("stage=provider-call authority=" + name);
             Bundle reply = IContentProviderCompat.call(provider, null, null, name, "sendUserService", null, extra);
 
             if (reply != null) {
@@ -147,9 +153,11 @@ public class ServiceStarter {
                 }
             }
 
+            System.err.println("manager provider did not return a live server Binder");
             return false;
         } catch (Throwable tr) {
             Log.e(TAG, String.format("failed send binder to %s in user %d", packageName, userId), tr);
+            tr.printStackTrace(System.err);
             return false;
         } finally {
             if (provider != null) {

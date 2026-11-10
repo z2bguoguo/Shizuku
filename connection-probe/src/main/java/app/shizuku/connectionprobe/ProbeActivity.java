@@ -28,6 +28,15 @@ public class ProbeActivity extends Activity {
                 response.readException();
                 int uid = response.readInt();
                 if (uid != 2000) throw new IllegalStateException("wrong service uid: " + uid);
+                // Exercise a process that dies before Binder setup; diagnostics must
+                // still expose its actual class-loading exception and exit status.
+                Shizuku.bindUserService(new Shizuku.UserServiceArgs(new ComponentName(
+                        ProbeActivity.this.getPackageName(), "app.shizuku.connectionprobe.MissingService"))
+                        .daemon(false).tag("expected-bootstrap-failure").processNameSuffix("missing"),
+                        new ServiceConnection() {
+                            @Override public void onServiceConnected(ComponentName n, IBinder b) { }
+                            @Override public void onServiceDisconnected(ComponentName n) { }
+                        });
                 finishResult("PASS uid=" + uid + " elapsedMs=" + (android.os.SystemClock.uptimeMillis() - startedAt));
             } catch (Throwable e) { finishResult("FAIL " + android.util.Log.getStackTraceString(e)); }
             finally { request.recycle(); response.recycle(); }

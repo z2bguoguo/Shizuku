@@ -32,10 +32,16 @@ public class ShizukuUserServiceManager extends UserServiceManager {
         if (use32Bits && new File("/system/bin/app_process32").exists()) {
             appProcess = "/system/bin/app_process32";
         }
-        return ServiceStarter.commandForUserService(
+        String command = ServiceStarter.commandForUserService(
                 appProcess,
                 ShizukuService.getManagerApplicationInfo().sourceDir,
                 token, packageName, classname, processNameSuffix, callingUid, debug);
+        try {
+            return UserServiceDiagnostics.capture(command, UserServiceDiagnostics.begin(packageName, classname, callingUid));
+        } catch (java.io.IOException e) {
+            LOGGER.w(e, "Cannot capture user service startup output");
+            return command;
+        }
     }
 
     @Override

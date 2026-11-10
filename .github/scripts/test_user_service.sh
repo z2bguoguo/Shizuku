@@ -28,8 +28,19 @@ for attempt in $(seq 1 25); do
   result=$(adb shell run-as "$PROBE_ID" cat files/result.txt 2>/dev/null | tr -d '\r' || true)
   if [[ -n "$result" ]]; then
     printf '%s\n' "$result" | tee device-test/result.txt
-    [[ "$result" == PASS* ]]
-    exit $?
+    [[ "$result" == PASS* ]] || exit 1
+    manager_id=$(tr -d '\r\n' < release/package-name.txt)
+    for capture_attempt in $(seq 1 15); do
+      adb shell "cat /data/local/tmp/$manager_id-2000-user-service-logs/*.log" > device-test/service-startup.txt 2>/dev/null || true
+      if grep -q 'ClassNotFoundException' device-test/service-startup.txt && grep -q 'process-exit=1' device-test/service-startup.txt; then
+        echo 'PASS startup stderr and failed-process exit captured'
+        exit 0
+      fi
+      sleep 1
+    done
+    cat device-test/service-startup.txt
+    echo 'FAIL bootstrap error was not captured'
+    exit 1
   fi
   sleep 1
 done
