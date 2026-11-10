@@ -9,6 +9,7 @@ import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceFragmentCompat
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -19,6 +20,11 @@ import rikka.shizuku.Shizuku
 import rikka.shizuku.server.ServerConstants
 
 class BlacklistActivity : AppBarFragmentActivity() {
+    override fun onApplyUserThemeResource(theme: android.content.res.Resources.Theme, isDecorView: Boolean) {
+        super.onApplyUserThemeResource(theme, isDecorView)
+        theme.applyStyle(R.style.ThemeOverlay_Rikka_Material3_Preference, true)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
@@ -104,6 +110,8 @@ class BlacklistFragment : PreferenceFragmentCompat() {
                 category.title = getString(R.string.sdk_blacklist_apps)
                 save.isEnabled = true
                 renderApps()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 category.title = getString(R.string.sdk_blacklist_error, e.message ?: e.javaClass.simpleName)
             }
@@ -134,6 +142,8 @@ class BlacklistFragment : PreferenceFragmentCompat() {
             try {
                 withContext(Dispatchers.IO) { SdkBlacklist.set(packages) }
                 Toast.makeText(requireContext(), R.string.sdk_blacklist_saved, Toast.LENGTH_LONG).show()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Toast.makeText(requireContext(), getString(R.string.sdk_blacklist_error, e.message ?: ""), Toast.LENGTH_LONG).show()
             } finally {

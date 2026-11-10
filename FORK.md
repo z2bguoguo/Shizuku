@@ -8,6 +8,8 @@ Push to `master` (code changes) or run **Build and release fork** manually. Ever
 
 Release contains a signed release APK, actual package ID, APK metadata, signing certificate and SHA-256. Optional repository secrets: `KEYSTORE` (base64 JKS), `KEYSTORE_PASSWORD`, `KEYSTORE_ALIAS`, `KEYSTORE_ALIAS_PASSWORD`. Without them the workflow generates a temporary build key; each random package is an independent app. API permission ownership can prevent coexistence with the official or another fork manager; uninstall the old manager if installation reports duplicate permissions. Random package names do not provide ordinary APK updates or automatic manager data migration.
 
+The build pins released NDK r29 (`29.0.14206865`) instead of the original preview revision; see [Android NDK release history](https://github.com/android/ndk/wiki/unsupported-downloads).
+
 Local build: initialize the existing API submodule, install JDK 21 and the Android SDK/NDK versions from the workflow, then run `./gradlew :manager:assembleRelease -PmanagerApplicationId=app.example.manager`. Omitting this property keeps the original ID for development.
 
 ## SDK blacklist

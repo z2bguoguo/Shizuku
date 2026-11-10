@@ -67,14 +67,14 @@ public class ShizukuConfigManager extends ConfigManager {
         return new ShizukuConfig();
     }
 
-    public static void write(ShizukuConfig config) {
+    public static boolean write(ShizukuConfig config) {
         synchronized (ATOMIC_FILE) {
             FileOutputStream stream;
             try {
                 stream = ATOMIC_FILE.startWrite();
             } catch (IOException e) {
                 LOGGER.w("failed to write state: " + e);
-                return;
+                return false;
             }
 
             try {
@@ -83,9 +83,11 @@ public class ShizukuConfigManager extends ConfigManager {
 
                 ATOMIC_FILE.finishWrite(stream);
                 LOGGER.v("config saved");
+                return true;
             } catch (Throwable tr) {
                 LOGGER.w(tr, "can't save %s, restoring backup.", ATOMIC_FILE.getBaseFile());
                 ATOMIC_FILE.failWrite(stream);
+                return false;
             }
         }
     }
@@ -105,9 +107,13 @@ public class ShizukuConfigManager extends ConfigManager {
     }
 
     public synchronized void setSdkBlacklist(List<String> packages) {
+        List<String> old = config.sdkBlacklist;
         config.sdkBlacklist = new ArrayList<>(new LinkedHashSet<>(packages));
-        // Persist before acknowledging a manager change.
-        write(config);
+        // Persist before acknowledging a manager change; keep memory and disk consistent.
+        if (!write(config)) {
+            config.sdkBlacklist = old;
+            throw new IllegalStateException("Could not persist SDK blacklist");
+        }
     }
 
     public synchronized boolean isSdkBlocked(List<String> packages) {
