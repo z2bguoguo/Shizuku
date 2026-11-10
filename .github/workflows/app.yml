@@ -70,6 +70,9 @@ jobs:
           python3 tests/check_fork.py
           chmod +x gradlew
           ./gradlew :manager:testReleaseUnitTest :manager:assembleRelease --stacktrace
+      - name: Print failed test reports
+        if: failure()
+        run: find manager/build/test-results -name '*.xml' -exec cat {} + 2>/dev/null || true
       - name: Verify APK and prepare release
         shell: bash
         run: |
