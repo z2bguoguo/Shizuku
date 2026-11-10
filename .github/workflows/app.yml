@@ -79,6 +79,8 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK" > release/signing-certificate.txt
           "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" > release/apk-badging.txt
           grep -F "package: name='$PACKAGE_ID'" release/apk-badging.txt
+          "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest print "$APK" > release/AndroidManifest.xml
+          python3 tests/check_fork.py release/AndroidManifest.xml
           printf '%s\n' "$PACKAGE_ID" > release/package-name.txt
           python3 .github/scripts/release_notes.py > release/release-notes.md
           (cd release && sha256sum *.apk > SHA256SUMS)
