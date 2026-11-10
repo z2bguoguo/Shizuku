@@ -139,6 +139,7 @@ public class BinderSender {
     }
 
     private static void sendBinder(int uid, int pid) throws RemoteException {
+        if (sShizukuService.isSdkBlocked(uid)) return;
         List<String> packages = PackageManagerApis.getPackagesForUidNoThrow(uid);
         if (packages.isEmpty())
             return;

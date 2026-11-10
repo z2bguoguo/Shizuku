@@ -23,6 +23,7 @@ find_package(cxx REQUIRED CONFIG)
 add_executable(libshizuku.so
         starter.cpp misc.cpp selinux.cpp cgroup.cpp)
 
+target_compile_definitions(libshizuku.so PRIVATE MANAGER_APPLICATION_ID="${MANAGER_APPLICATION_ID}")
 target_link_libraries(libshizuku.so log cxx::cxx)
 
 if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")

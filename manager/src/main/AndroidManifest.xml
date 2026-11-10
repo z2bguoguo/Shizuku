@@ -69,6 +69,12 @@
             android:name=".MainActivity"
             android:banner="@mipmap/banner"
             android:exported="true">
+        </activity>
+        <activity-alias
+            android:name=".Launcher"
+            android:targetActivity=".MainActivity"
+            android:enabled="true"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -78,7 +84,7 @@
                 <!-- and possibly additional review steps. To avoid problems, remove it temporarily. -->
                 <!--<category android:name="android.intent.category.LEANBACK_LAUNCHER" />-->
             </intent-filter>
-        </activity>
+        </activity-alias>
         <activity
             android:name=".management.ApplicationManagementActivity"
             android:label="@string/home_app_management_title" />
@@ -88,6 +94,8 @@
         <activity
             android:name=".shell.ShellTutorialActivity"
             android:label="@string/home_terminal_title" />
+        <activity android:name=".privacy.BlacklistActivity" android:exported="false"
+            android:label="@string/sdk_blacklist_title" />
         <activity
             android:name=".settings.SettingsActivity"
             android:exported="false"

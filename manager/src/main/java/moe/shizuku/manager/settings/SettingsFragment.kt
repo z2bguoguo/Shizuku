@@ -85,6 +85,32 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 true
             }
 
+        findPreference<Preference>("sdk_blacklist")!!.setOnPreferenceClickListener {
+            startActivity(android.content.Intent(context, moe.shizuku.manager.privacy.BlacklistActivity::class.java))
+            true
+        }
+        val launcher = ComponentName(context.packageName, "moe.shizuku.manager.Launcher")
+        findPreference<TwoStatePreference>("hide_launcher")!!.apply {
+            isPersistent = false
+            isChecked = !context.packageManager.isComponentEnabled(launcher)
+            setOnPreferenceChangeListener { _, value ->
+                if (value == true) {
+                    com.google.android.material.dialog.MaterialAlertDialogBuilder(context)
+                        .setTitle(R.string.hide_launcher_title)
+                        .setMessage(getString(R.string.hide_launcher_confirm, context.packageName))
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .setPositiveButton(android.R.string.ok) { _, _ ->
+                            context.packageManager.setComponentEnabled(launcher, false)
+                            isChecked = true
+                        }.show()
+                    false
+                } else {
+                    context.packageManager.setComponentEnabled(launcher, true)
+                    true
+                }
+            }
+        }
+
         setupLocalePreference()
 
         nightModePreference.value = ShizukuSettings.getNightMode()

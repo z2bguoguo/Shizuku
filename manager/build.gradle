@@ -12,12 +12,12 @@ plugins {
 android {
     namespace 'moe.shizuku.manager'
     defaultConfig {
-        applicationId "moe.shizuku.privileged.api"
+        applicationId rootProject.ext.managerApplicationId
         versionCode rootProject.ext.versionCode
         versionName rootProject.ext.versionName
         externalNativeBuild {
             cmake {
-                arguments '-DANDROID_STL=none'
+                arguments '-DANDROID_STL=none', "-DMANAGER_APPLICATION_ID=${rootProject.ext.managerApplicationId}"
             }
         }
     }

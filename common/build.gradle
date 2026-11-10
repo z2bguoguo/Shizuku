@@ -4,8 +4,11 @@ plugins {
 
 android {
     namespace 'rikka.shizuku.common'
+    defaultConfig {
+        buildConfigField 'String', 'MANAGER_APPLICATION_ID', '"' + rootProject.ext.managerApplicationId + '"'
+    }
     buildFeatures {
-        buildConfig = false
+        buildConfig = true
     }
 }
 

@@ -6,6 +6,11 @@ idea.module {
     excludeDirs += file('out')
 }
 
+ext.managerApplicationId = providers.gradleProperty('managerApplicationId').getOrElse('moe.shizuku.privileged.api')
+if (!(managerApplicationId ==~ /[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+/)) {
+    throw new GradleException('Invalid managerApplicationId')
+}
+
 subprojects {
     plugins.withId("com.android.base") {
         android {

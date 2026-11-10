@@ -1,54 +1,94 @@
-name: App
+name: Build and release fork
 
 on:
   push:
-    paths-ignore:
-      - '.github/ISSUE_TEMPLATE'
+    branches: [master]
+    paths-ignore: ['**/*.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fork-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
+    if: github.repository == 'z2bguoguo/Shizuku'
     runs-on: ubuntu-latest
-
+    timeout-minutes: 60
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          submodules: 'recursive'
           fetch-depth: 0
-      - name: Setup Java
-        uses: actions/setup-java@v4
+          submodules: recursive
+      - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '21'
-      - name: Write key
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Generate build identity
+        shell: bash
         run: |
-          echo KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }} > signing.properties
-          echo KEYSTORE_ALIAS=${{ secrets.KEYSTORE_ALIAS }} >> signing.properties
-          echo KEYSTORE_ALIAS_PASSWORD='${{ secrets.KEYSTORE_ALIAS_PASSWORD }}' >> signing.properties
-          echo KEYSTORE_FILE=../key.jks >> signing.properties
-          echo ${{ secrets.KEYSTORE }} | base64 --decode > key.jks
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          dependency-graph: generate-and-submit
-          build-scan-publish: true
-          build-scan-terms-of-use-url: "https://gradle.com/terms-of-service"
-          build-scan-terms-of-use-agree: "yes"
-      - name: Build with Gradle
-        id: buildWithGradle
+          PACKAGE_ID="app.p$(openssl rand -hex 12).m$(openssl rand -hex 6)"
+          echo "PACKAGE_ID=$PACKAGE_ID" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          printf 'managerApplicationId=%s\n' "$PACKAGE_ID" >> gradle.properties
+      - name: Configure signing
+        shell: bash
+        env:
+          SIGNING_KEY: ${{ secrets.KEYSTORE }}
+          SIGNING_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SIGNING_ALIAS: ${{ secrets.KEYSTORE_ALIAS }}
+          SIGNING_ALIAS_PASSWORD: ${{ secrets.KEYSTORE_ALIAS_PASSWORD }}
         run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
-          echo 'android.sdk.channel=3' >> gradle.properties
-          echo 'android.native.buildOutput=verbose' >> gradle.properties
-          echo 'org.gradle.caching=true' >> gradle.properties
-          echo 'org.gradle.parallel=true' >> gradle.properties
-          ./gradlew :manager:assemble
-          releaseName=`ls manager/build/outputs/apk/release/shizuku*-v*-release.apk | awk -F '(/|-release.apk)' '{print $6}'` && echo "releaseName=$releaseName" >> $GITHUB_OUTPUT
-      - name: Upload release
-        if: success()
-        uses: actions/upload-artifact@v4
+          if [[ -n "$SIGNING_KEY" ]]; then
+            test -n "$SIGNING_PASSWORD" && test -n "$SIGNING_ALIAS" && test -n "$SIGNING_ALIAS_PASSWORD"
+            printf '%s' "$SIGNING_KEY" | base64 --decode > key.jks
+            python3 - <<'PY'
+          import os
+          def escape(s):
+              return s.replace('\\', '\\\\').replace('\n', '\\n').replace('\r', '\\r').replace('=', '\\=').replace(':', '\\:').replace(' ', '\\ ')
+          values = {'KEYSTORE_FILE': '../key.jks', 'KEYSTORE_PASSWORD': os.environ['SIGNING_PASSWORD'], 'KEYSTORE_ALIAS': os.environ['SIGNING_ALIAS'], 'KEYSTORE_ALIAS_PASSWORD': os.environ['SIGNING_ALIAS_PASSWORD']}
+          with open('signing.properties', 'w') as f:
+              f.write(''.join(k + '=' + escape(v) + '\n' for k, v in values.items()))
+          PY
+            echo 'SIGNING_MODE=custom-keystore' >> "$GITHUB_ENV"
+          else
+            mkdir -p "$HOME/.android"
+            keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -dname 'CN=Fork Build,O=Android,C=US' -keyalg RSA -keysize 2048 -validity 10000
+            echo 'SIGNING_MODE=ephemeral-build-key' >> "$GITHUB_ENV"
+          fi
+      - name: Install build tools
+        run: sdkmanager --channel=3 'platforms;android-36' 'build-tools;36.0.0' 'ndk;29.0.13113456' 'cmake;3.31.6'
+      - name: Check source and build
+        run: |
+          python3 tests/check_fork.py
+          chmod +x gradlew
+          ./gradlew :manager:assembleRelease --stacktrace
+      - name: Verify APK and prepare release
+        shell: bash
+        run: |
+          mkdir -p release
+          cp manager/build/outputs/apk/release/*.apk release/
+          APK=$(find release -name '*.apk' -print -quit)
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK" > release/signing-certificate.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" > release/apk-badging.txt
+          grep -F "package: name='$PACKAGE_ID'" release/apk-badging.txt
+          printf '%s\n' "$PACKAGE_ID" > release/package-name.txt
+          python3 .github/scripts/release_notes.py > release/release-notes.md
+          (cd release && sha256sum *.apk > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.buildWithGradle.outputs.releaseName }}
-          path: "manager/build/outputs"
-          compression-level: 9
+          name: fork-${{ env.RELEASE_TAG }}
+          path: release/
+          if-no-files-found: error
+      - name: Publish release in this fork
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$RELEASE_TAG" release/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Shizuku fork $RELEASE_TAG" --notes-file release/release-notes.md
+      - name: Remove signing material
+        if: always()
+        run: rm -f key.jks signing.properties

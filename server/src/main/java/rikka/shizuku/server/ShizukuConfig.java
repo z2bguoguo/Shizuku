@@ -17,6 +17,9 @@ public class ShizukuConfig {
     @SerializedName("packages")
     public List<PackageEntry> packages = new ArrayList<>();
 
+    @SerializedName("sdkBlacklist")
+    public List<String> sdkBlacklist = new ArrayList<>();
+
     public static class PackageEntry extends ConfigPackageEntry {
 
         @SerializedName("uid")

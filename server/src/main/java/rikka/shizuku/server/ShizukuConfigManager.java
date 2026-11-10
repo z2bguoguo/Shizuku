@@ -94,11 +94,29 @@ public class ShizukuConfigManager extends ConfigManager {
 
         @Override
         public void run() {
-            write(config);
+            synchronized (ShizukuConfigManager.this) { write(config); }
         }
     };
 
     private final ShizukuConfig config;
+
+    public synchronized List<String> getSdkBlacklist() {
+        return config.sdkBlacklist == null ? new ArrayList<>() : new ArrayList<>(config.sdkBlacklist);
+    }
+
+    public synchronized void setSdkBlacklist(List<String> packages) {
+        config.sdkBlacklist = new ArrayList<>(new LinkedHashSet<>(packages));
+        // Persist before acknowledging a manager change.
+        write(config);
+    }
+
+    public synchronized boolean isSdkBlocked(List<String> packages) {
+        if (config.sdkBlacklist == null) return false;
+        for (String name : packages) {
+            if (config.sdkBlacklist.contains(name)) return true;
+        }
+        return false;
+    }
 
     public ShizukuConfigManager() {
         this.config = load();

@@ -31,8 +31,8 @@
 #define EXIT_FATAL_KILL 9
 #define EXIT_FATAL_BINDER_BLOCKED_BY_SELINUX 10
 
-#define PACKAGE_NAME "moe.shizuku.privileged.api"
-#define SERVER_NAME "shizuku_server"
+#define PACKAGE_NAME MANAGER_APPLICATION_ID
+#define SERVER_NAME MANAGER_APPLICATION_ID ":service"
 #define SERVER_CLASS_PATH "rikka.shizuku.server.ShizukuService"
 
 #if defined(__arm__)

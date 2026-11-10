@@ -59,7 +59,7 @@ import rikka.shizuku.server.util.UserHandleCompat;
 public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuClientManager, ShizukuConfigManager> {
 
     public static void main(String[] args) {
-        DdmHandleAppName.setAppName("shizuku_server", 0);
+        DdmHandleAppName.setAppName(MANAGER_APPLICATION_ID + ":service", 0);
         RishConfig.setLibraryPath(System.getProperty("shizuku.library.path"));
 
         Looper.prepareMainLooper();
@@ -193,6 +193,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
         if (requestPackageName == null) {
             return;
         }
+        if (isSdkBlocked(Binder.getCallingUid())) return;
         int apiVersion = args.getInt(ATTACH_APPLICATION_API_VERSION, -1);
 
         int callingPid = Binder.getCallingPid();
@@ -455,10 +456,59 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
         return new ParcelableListSlice<>(list);
     }
 
+    public boolean isSdkBlocked(int uid) {
+        if (UserHandleCompat.getAppId(uid) == UserHandleCompat.getAppId(managerAppId)) return false;
+        return configManager.isSdkBlocked(PackageManagerApis.getPackagesForUidNoThrow(uid));
+    }
+
+    private void setSdkBlacklist(List<String> packages) {
+        if (packages == null || packages.size() > 10000) {
+            throw new IllegalArgumentException("Invalid blacklist");
+        }
+        for (String name : packages) {
+            if (name == null || name.length() > 255 || !name.matches("[a-zA-Z0-9_]+(\\.[a-zA-Z0-9_]+)+")
+                    || MANAGER_APPLICATION_ID.equals(name)) {
+                throw new IllegalArgumentException("Invalid blacklist package");
+            }
+        }
+        List<String> old = configManager.getSdkBlacklist();
+        configManager.setSdkBlacklist(packages);
+        // Existing clients can cache a Binder: restart newly blocked packages in every user.
+        for (int user : UserManagerApis.getUserIdsNoThrow()) {
+            for (String name : packages) {
+                if (old.contains(name)) continue;
+                PackageInfo pi = PackageManagerApis.getPackageInfoNoThrow(name, 0, user);
+                if (pi == null || pi.applicationInfo == null) continue;
+                for (String shared : PackageManagerApis.getPackagesForUidNoThrow(pi.applicationInfo.uid)) {
+                    onPermissionRevoked(shared);
+                    ActivityManagerApis.forceStopPackageNoThrow(shared, user);
+                }
+            }
+        }
+        // Re-deliver to unblocked apps without waiting for a process observer transition.
+        mainHandler.post(this::sendBinderToClient);
+    }
+
     @Override
     public boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
-        //LOGGER.d("transact: code=%d, calling uid=%d", code, Binder.getCallingUid());
+        // No SDK callback or Binder API response for a blocked UID, including cached handles.
+        // Return immediately; never park a binder thread to simulate a timeout.
+        if (isSdkBlocked(Binder.getCallingUid())) return false;
+        if (code == ServerConstants.BINDER_TRANSACTION_getBlacklist
+                || code == ServerConstants.BINDER_TRANSACTION_setBlacklist) {
+            enforceManagerPermission("sdkBlacklist");
+            data.enforceInterface(ShizukuApiConstants.BINDER_DESCRIPTOR);
+            if (code == ServerConstants.BINDER_TRANSACTION_setBlacklist) {
+                setSdkBlacklist(data.createStringArrayList());
+                reply.writeNoException();
+            } else {
+                reply.writeNoException();
+                reply.writeStringList(configManager.getSdkBlacklist());
+            }
+            return true;
+        }
         if (code == ServerConstants.BINDER_TRANSACTION_getApplications) {
+            enforceManagerPermission("getApplications");
             data.enforceInterface(ShizukuApiConstants.BINDER_DESCRIPTOR);
             int userId = data.readInt();
             ParcelableListSlice<PackageInfo> result = getApplications(userId);
@@ -509,6 +559,11 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
     }
 
     static void sendBinderToUserApp(Binder binder, String packageName, int userId, boolean retry) {
+        if (binder instanceof ShizukuService && !MANAGER_APPLICATION_ID.equals(packageName)) {
+            PackageInfo pi = PackageManagerApis.getPackageInfoNoThrow(packageName, 0, userId);
+            if (pi == null || pi.applicationInfo == null
+                    || ((ShizukuService) binder).isSdkBlocked(pi.applicationInfo.uid)) return;
+        }
         try {
             DeviceIdleControllerApis.addPowerSaveTempWhitelistApp(packageName, 30 * 1000, userId,
                     316/* PowerExemptionManager#REASON_SHELL */, "shell");

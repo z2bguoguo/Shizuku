@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="privacy_title">隐私</string>
+    <string name="sdk_blacklist_title">SDK 黑名单</string>
+    <string name="sdk_blacklist_summary">选择不再接收 Shizuku Binder 的应用</string>
+    <string name="sdk_blacklist_details">选中的包名不再接收 SDK Binder 和连接回调。保存时会停止所有用户下新加入的应用及共享 UID 的应用；共享 UID 会一起屏蔽。此功能不隐藏 Android 系统查询到的安装包、权限或进程。修改后请点击保存。</string>
+    <string name="sdk_blacklist_save">保存黑名单</string>
+    <string name="sdk_blacklist_search">搜索应用名或包名</string>
+    <string name="sdk_blacklist_loading">正在加载…</string>
+    <string name="sdk_blacklist_apps">已安装应用（所有用户）</string>
+    <string name="sdk_blacklist_not_running">请先启动 Shizuku，再编辑黑名单。</string>
+    <string name="sdk_blacklist_error">操作失败：%1$s</string>
+    <string name="sdk_blacklist_saved">黑名单已保存，新加入的应用已停止。</string>
+    <string name="hide_launcher_title">隐藏桌面图标</string>
+    <string name="hide_launcher_summary">隐藏桌面入口，不会隐藏已安装包或运行中的服务。</string>
+    <string name="hide_launcher_confirm">隐藏后可从应用详情中的“应用内的其他设置”（部分系统支持）进入，或执行：adb shell am start -n %1$s/moe.shizuku.manager.MainActivity 。关闭本开关可恢复图标。</string>
+</resources>

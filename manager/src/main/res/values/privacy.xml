@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="privacy_title">Privacy</string>
+    <string name="sdk_blacklist_title">SDK blacklist</string>
+    <string name="sdk_blacklist_summary">Choose apps that must not receive the Shizuku Binder</string>
+    <string name="sdk_blacklist_details">Selected packages receive no SDK Binder or attach callback. Saving stops newly blocked apps and their shared-UID peers in all users. Shared-UID apps are blocked together. This does not hide installed packages, permissions or processes from Android system queries. Changes take effect after Save.</string>
+    <string name="sdk_blacklist_save">Save blacklist</string>
+    <string name="sdk_blacklist_search">Search app name or package</string>
+    <string name="sdk_blacklist_loading">Loading…</string>
+    <string name="sdk_blacklist_apps">Installed apps (all users)</string>
+    <string name="sdk_blacklist_not_running">Start Shizuku before editing the blacklist.</string>
+    <string name="sdk_blacklist_error">Operation failed: %1$s</string>
+    <string name="sdk_blacklist_saved">Blacklist saved. Newly blocked apps have been stopped.</string>
+    <string name="hide_launcher_title">Hide launcher icon</string>
+    <string name="hide_launcher_summary">Hide the home screen entry. Does not hide the installed package or running service.</string>
+    <string name="hide_launcher_confirm">After hiding, open App info → Additional settings in the app (if available), or run: adb shell am start -n %1$s/moe.shizuku.manager.MainActivity . Turn this switch off to restore the icon.</string>
+</resources>
