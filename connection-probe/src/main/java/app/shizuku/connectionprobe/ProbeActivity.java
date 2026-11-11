@@ -21,6 +21,11 @@ public class ProbeActivity extends Activity {
     private Shizuku.UserServiceArgs args;
     private final ServiceConnection connection = new ServiceConnection() {
         @Override public void onServiceConnected(ComponentName name, IBinder binder) {
+            // Keep the activity responsive while UiAutomation waits for callbacks.
+            new Handler(Looper.getMainLooper()).postDelayed(() ->
+                    new Thread(() -> verifyService(binder), "probe-client").start(), 1000);
+        }
+        private void verifyService(IBinder binder) {
             Parcel request = Parcel.obtain();
             Parcel response = Parcel.obtain();
             try {
@@ -28,6 +33,18 @@ public class ProbeActivity extends Activity {
                 response.readException();
                 int uid = response.readInt();
                 if (uid != 2000) throw new IllegalStateException("wrong service uid: " + uid);
+                request.setDataSize(0);
+                request.setDataPosition(0);
+                response.setDataSize(0);
+                response.setDataPosition(0);
+                if (!binder.transact(IBinder.FIRST_CALL_TRANSACTION + 1, request, response, 0)) {
+                    throw new IllegalStateException("automation probe transaction rejected");
+                }
+                response.readException();
+                String automation = response.readString();
+                if (automation == null || !automation.startsWith("PASS ")) {
+                    throw new IllegalStateException("User-service automation: " + automation);
+                }
                 // Exercise a process that dies before Binder setup; diagnostics must
                 // still expose its actual class-loading exception and exit status.
                 Shizuku.bindUserService(new Shizuku.UserServiceArgs(new ComponentName(
@@ -37,7 +54,7 @@ public class ProbeActivity extends Activity {
                             @Override public void onServiceConnected(ComponentName n, IBinder b) { }
                             @Override public void onServiceDisconnected(ComponentName n) { }
                         });
-                finishResult("PASS uid=" + uid + " elapsedMs=" + (android.os.SystemClock.uptimeMillis() - startedAt));
+                finishResult("PASS uid=" + uid + " automation={" + automation + "} elapsedMs=" + (android.os.SystemClock.uptimeMillis() - startedAt));
             } catch (Throwable e) { finishResult("FAIL " + android.util.Log.getStackTraceString(e)); }
             finally { request.recycle(); response.recycle(); }
         }
@@ -46,11 +63,16 @@ public class ProbeActivity extends Activity {
     private final Shizuku.OnBinderReceivedListener received = this::startProbe;
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        android.widget.TextView content = new android.widget.TextView(this);
+        content.setText("Shizuku user-service compatibility probe");
+        content.setTextSize(24);
+        content.setPadding(24, 48, 24, 24);
+        setContentView(content);
         new File(getFilesDir(), "result.txt").delete();
         Shizuku.addBinderReceivedListenerSticky(received);
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             if (!complete) finishResult("FAIL timed out; binder=" + Shizuku.pingBinder());
-        }, 15000);
+        }, 25000);
     }
     private synchronized void startProbe() {
         if (started) return;

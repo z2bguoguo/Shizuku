@@ -24,7 +24,7 @@ adb push "$RUNNER_TEMP/shizuku-probe-starter" /data/local/tmp/shizuku-probe-star
 adb shell chmod 755 /data/local/tmp/shizuku-probe-starter
 adb shell /data/local/tmp/shizuku-probe-starter | tee device-test/startup.txt
 adb shell am start -W -n "$PROBE_ID/.ProbeActivity"
-for attempt in $(seq 1 25); do
+for attempt in $(seq 1 35); do
   result=$(adb shell run-as "$PROBE_ID" cat files/result.txt 2>/dev/null | tr -d '\r' || true)
   if [[ -n "$result" ]]; then
     printf '%s\n' "$result" | tee device-test/result.txt
