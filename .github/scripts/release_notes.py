@@ -2,6 +2,7 @@ import os
 p = os.environ['PACKAGE_ID']
 print(f'''Personal fork build. Package: `{p}`
 
+- Compatibility: preserve the official v13.6.0 user-service runtime state. OEM null-state recovery now uses temporary bind state and restores it before client service construction. Android 14 CI verifies active-window reads and screenshots; affected physical-device behavior still needs verification.
 - SDK blacklist: Settings → SDK blacklist → select packages → Save. Start Shizuku first.
 - Newly blocked apps (and shared-UID peers) are stopped in all Android users to remove cached Binder handles.
 - A blocked UID receives no SDK Binder/attach callback. Cached API transactions are rejected immediately; calls are not deliberately hung.

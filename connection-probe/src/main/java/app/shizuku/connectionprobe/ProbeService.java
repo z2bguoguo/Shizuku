@@ -11,8 +11,8 @@ import android.os.Parcel;
 public class ProbeService extends Binder {
     public ProbeService(android.content.Context context) {
         String processName = android.app.Application.getProcessName();
-        if (processName == null || !processName.equals("app.shizuku.connectionprobe:probe")) {
-            throw new IllegalStateException("Missing/wrong framework process name: " + processName);
+        if (processName != null) {
+            throw new IllegalStateException("Synthetic framework bind state leaked into service: " + processName);
         }
         if (context.getApplicationContext() == null) {
             throw new IllegalStateException("Application context was not initialized");

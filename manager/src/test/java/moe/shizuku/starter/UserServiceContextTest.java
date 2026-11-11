@@ -63,4 +63,73 @@ public class UserServiceContextTest {
             assertTrue(error.getCause() instanceof IllegalStateException);
         }
     }
+    private static class WorkingLoadedApk {
+        final Application application = new Application();
+        private Application makeApplication(boolean forceDefault, Instrumentation instrumentation) {
+            return application;
+        }
+    }
+    @Test public void normalFrameworkUsesOfficialUnboundState() throws Exception {
+        ThreadState thread = new ThreadState();
+        WorkingLoadedApk loaded = new WorkingLoadedApk();
+        Application result = UserServiceContext.makeApplication(thread, "client:worker", new Object(),
+                loaded, RuntimeEnvironment.getApplication());
+        assertSame(loaded.application, result);
+        assertNull(thread.mBoundApplication);
+    }
+
+    private static class StateDependentLoadedApk {
+        final ThreadState thread;
+        final Application application = new Application();
+        int attempts;
+        StateDependentLoadedApk(ThreadState thread) { this.thread = thread; }
+        private Application makeApplication(boolean forceDefault, Instrumentation instrumentation) {
+            attempts++;
+            if (attempts == 1) throw new NullPointerException("OEM process state unavailable");
+            assertEquals("client:worker", thread.mBoundApplication.processName);
+            assertSame(this, thread.mBoundApplication.info);
+            return application;
+        }
+    }
+    @Test public void oemRetryRestoresExactPreviousRecordWithoutMutatingIt() throws Exception {
+        ThreadState thread = new ThreadState();
+        BindData previous = new BindData();
+        previous.processName = "previous";
+        Object originalInfo = new Object();
+        previous.appInfo = originalInfo;
+        thread.mBoundApplication = previous;
+        StateDependentLoadedApk loaded = new StateDependentLoadedApk(thread);
+        assertSame(loaded.application, UserServiceContext.makeApplication(thread, "client:worker",
+                new Object(), loaded, RuntimeEnvironment.getApplication()));
+        assertEquals(2, loaded.attempts);
+        assertSame(previous, thread.mBoundApplication);
+        assertEquals("previous", previous.processName);
+        assertSame(originalInfo, previous.appInfo);
+    }
+    @Test public void oemFallbackDoesNotLeaveClientIdentityBound() throws Exception {
+        ThreadState thread = new ThreadState();
+        Application result = UserServiceContext.makeApplication(thread, "client:worker", new Object(),
+                new OemLoadedApk(), RuntimeEnvironment.getApplication());
+        assertNotNull(result);
+        assertNull(thread.mBoundApplication);
+    }
+    private static class FailingRetryLoadedApk {
+        int attempts;
+        private Application makeApplication(boolean forceDefault, Instrumentation instrumentation) {
+            if (++attempts == 1) throw new NullPointerException("OEM process state unavailable");
+            throw new IllegalStateException("retry failure");
+        }
+    }
+    @Test public void failedRetryAlsoRestoresUnboundState() throws Exception {
+        ThreadState thread = new ThreadState();
+        try {
+            UserServiceContext.makeApplication(thread, "client:worker", new Object(),
+                    new FailingRetryLoadedApk(), RuntimeEnvironment.getApplication());
+            fail("Expected retry failure");
+        } catch (InvocationTargetException failure) {
+            assertTrue(failure.getCause() instanceof IllegalStateException);
+        }
+        assertNull(thread.mBoundApplication);
+    }
+
 }

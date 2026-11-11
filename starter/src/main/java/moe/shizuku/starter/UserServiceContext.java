@@ -43,20 +43,51 @@ public final class UserServiceContext {
         field(boundData.getClass(), "info").set(boundData, loadedApk);
     }
 
-    static Application makeApplication(Object loadedApk, Context context) throws ReflectiveOperationException {
+    private static Application invokeMakeApplication(Object loadedApk) throws ReflectiveOperationException {
         Method make = loadedApk.getClass().getDeclaredMethod("makeApplication", boolean.class, Instrumentation.class);
         make.setAccessible(true);
+        return (Application) make.invoke(loadedApk, true, null);
+    }
+
+    private static boolean isNullState(InvocationTargetException failure) {
+        Throwable cause = failure.getCause();
+        for (int depth = 0; cause != null && depth < 12; depth++, cause = cause.getCause()) {
+            if (cause instanceof NullPointerException) return true;
+        }
+        return false;
+    }
+
+    static Application makeApplication(Object thread, String processName, Object appInfo,
+            Object loadedApk, Context context) throws ReflectiveOperationException {
+        // Keep the official app_process runtime contract on frameworks that work
+        // without synthetic bind state. Package/process attribution is not a real
+        // application bind and must not persist into client service calls.
         try {
-            return (Application) make.invoke(loadedApk, true, null);
+            return invokeMakeApplication(loadedApk);
         } catch (InvocationTargetException failure) {
-            // Only recover the known OEM framework null-state failure. Other failures
-            // retain their original exception and must remain visible in diagnostics.
-            Throwable cause = failure.getCause();
-            boolean nullState = false;
-            for (int depth = 0; cause != null && depth < 12; depth++, cause = cause.getCause()) {
-                if (cause instanceof NullPointerException) { nullState = true; break; }
+            if (!isNullState(failure)) throw failure;
+            System.err.println("stage=application-context retrying OEM null-state with temporary framework state");
+            Field bound = field(thread.getClass(), "mBoundApplication");
+            Object previous = bound.get(thread);
+            try {
+                // Do not mutate an existing bind record: restore its exact object
+                // and fields even if framework creation or fallback throws.
+                bound.set(thread, null);
+                Object temporary = initializeBoundApplication(thread, processName, appInfo);
+                setLoadedApk(temporary, loadedApk);
+                return makeApplication(loadedApk, context);
+            } finally {
+                bound.set(thread, previous);
+                System.err.println("stage=framework-state restored after OEM bootstrap");
             }
-            if (!nullState) throw failure;
+        }
+    }
+
+    static Application makeApplication(Object loadedApk, Context context) throws ReflectiveOperationException {
+        try {
+            return invokeMakeApplication(loadedApk);
+        } catch (InvocationTargetException failure) {
+            if (!isNullState(failure)) throw failure;
             System.err.println("stage=application-context OEM null-state; using package-context fallback");
             failure.getCause().printStackTrace(System.err);
             Application application = new Application();

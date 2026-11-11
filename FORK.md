@@ -39,4 +39,6 @@ adb shell pm enable ACTUAL_PACKAGE/moe.shizuku.manager.Launcher
 4. Hide the launcher icon, recover with the exact Release package ID, then switch hiding off. Confirm the app remains visible in system Settings as documented.
 5. Install a second build after removing conflicting permission owners and confirm its actual random package matches `package-name.txt` and startup/rish/user services work.
 
-CI validates source boundaries, compiles the release, verifies its APK signature and checks its real manifest application ID. No device-level claim is implied by successful compilation.
+User services first use the official v13.6.0 application-creation path. If an OEM framework throws the known null-state failure, a temporary `ActivityThread.mBoundApplication` record supplies the process/package state only during application creation. The exact previous record is restored before the client service constructor runs, including when creation fails. This avoids changing framework package/process attribution for subsequent client API calls.
+
+CI validates source boundaries, compiles the release, verifies its APK signature and checks its real manifest application ID. An Android 14 emulator additionally checks shell UID 2000, restored unbound framework state, a real active-window read, a non-empty UiAutomation screenshot, and startup exception capture. Passing these checks does not establish compatibility with every OEM ROM or reproduce a particular client's failure.

@@ -68,12 +68,9 @@ public class UserServiceFactory {
                     : (name != null ? name : pkg + ":user_service");
             android.content.pm.ApplicationInfo appInfo = PackageManagerApis.getApplicationInfoNoThrow(pkg, 0, userId);
             if (appInfo == null) throw new IllegalStateException("Client application not found: " + pkg);
-            // Application.getProcessName/currentPackageName depend on this state. Some
-            // Xiaomi/MTK framework hooks dereference it during context/application creation.
-            Object boundData = UserServiceContext.initializeBoundApplication(activityThread, processName, appInfo);
             Context systemContext = activityThread.getSystemContext();
             DdmHandleAppName.setAppName(processName, userId);
-            System.err.println("stage=framework-state ready process=" + processName);
+            System.err.println("stage=framework-process name=" + processName);
 
             //noinspection InstantiationOfUtilityClass
             UserHandle userHandle = Refine.unsafeCast(
@@ -84,8 +81,8 @@ public class UserServiceFactory {
             Field mPackageInfo = context.getClass().getDeclaredField("mPackageInfo");
             mPackageInfo.setAccessible(true);
             Object loadedApk = mPackageInfo.get(context);
-            UserServiceContext.setLoadedApk(boundData, loadedApk);
-            Application application = UserServiceContext.makeApplication(loadedApk, context);
+            Application application = UserServiceContext.makeApplication(
+                    activityThread, processName, appInfo, loadedApk, context);
             System.err.println("stage=application-context ready");
             Field mInitialApplication = activityThread.getClass().getDeclaredField("mInitialApplication");
             mInitialApplication.setAccessible(true);
