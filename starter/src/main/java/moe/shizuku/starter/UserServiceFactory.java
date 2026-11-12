@@ -107,6 +107,12 @@ public class UserServiceFactory {
             return null;
         }
 
-        return new Pair<>(service, token);
+        try {
+            return new Pair<>(new DiagnosticBinder(service), token);
+        } catch (android.os.RemoteException failure) {
+            System.err.println("stage=diagnostic-binder unavailable; using original Binder");
+            failure.printStackTrace(System.err);
+            return new Pair<>(service, token);
+        }
     }
 }

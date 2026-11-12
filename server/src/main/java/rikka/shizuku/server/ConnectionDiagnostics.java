@@ -12,15 +12,16 @@ final class ConnectionDiagnostics {
         return value.replaceAll("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(?:-[0-9]+)?", "<token>");
     }
 
-    static String collect() {
+    static String collect(String serviceState) {
         String header = "Manager: " + ServerConstants.MANAGER_APPLICATION_ID
                 + "\nAndroid API: " + Build.VERSION.SDK_INT + "\nServer UID: " + Os.getuid() + "\n\n";
-        header += UserServiceDiagnostics.collect() + "\nRecent matching logcat:\n";
+        header += serviceState + "\n" + UserServiceDiagnostics.collect() + "\nRecent matching logcat:\n";
         java.lang.Process process = null;
         try {
             process = new ProcessBuilder("logcat", "-d", "-t", "3000", "-v", "brief",
                     "ShizukuServiceStarter:V", "UserServiceManager:V", "UserServiceRecord:V",
-                    "Service:V", "ShizukuManager:V", "AndroidRuntime:E", "*:S")
+                    "Service:V", "ShizukuManager:V", "UiAutomation:V", "UiAutomationConnection:V",
+                    "UiAutomationManager:V", "AccessibilityManagerService:W", "AndroidRuntime:E", "*:S")
                     .redirectErrorStream(true).start();
             ByteArrayOutputStream buffer = new ByteArrayOutputStream();
             try (InputStream input = process.getInputStream()) {

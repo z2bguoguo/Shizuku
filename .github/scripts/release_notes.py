@@ -2,6 +2,7 @@ import os
 p = os.environ['PACKAGE_ID']
 print(f'''Personal fork build. Package: `{p}`
 
+- Diagnostics: include service liveness, connection callback counts, bounded lifecycle events and forwarded user-service call exceptions. No request/response payloads are logged. CI exercises 12 bind/reconnect rounds. This improves diagnosis; the intermittent physical-device failure is not yet confirmed fixed.
 - Compatibility: preserve the official v13.6.0 user-service runtime state. OEM null-state recovery now uses temporary bind state and restores it before client service construction. Android 14 CI verifies active-window reads and screenshots; affected physical-device behavior still needs verification.
 - SDK blacklist: Settings → SDK blacklist → select packages → Save. Start Shizuku first.
 - Newly blocked apps (and shared-UID peers) are stopped in all Android users to remove cached Binder handles.

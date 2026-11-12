@@ -24,7 +24,7 @@ adb push "$RUNNER_TEMP/shizuku-probe-starter" /data/local/tmp/shizuku-probe-star
 adb shell chmod 755 /data/local/tmp/shizuku-probe-starter
 adb shell /data/local/tmp/shizuku-probe-starter | tee device-test/startup.txt
 adb shell am start -W -n "$PROBE_ID/.ProbeActivity"
-for attempt in $(seq 1 35); do
+for attempt in $(seq 1 75); do
   result=$(adb shell run-as "$PROBE_ID" cat files/result.txt 2>/dev/null | tr -d '\r' || true)
   if [[ -n "$result" ]]; then
     printf '%s\n' "$result" | tee device-test/result.txt
@@ -32,8 +32,8 @@ for attempt in $(seq 1 35); do
     manager_id=$(tr -d '\r\n' < release/package-name.txt)
     for capture_attempt in $(seq 1 15); do
       adb shell "cat /data/local/tmp/$manager_id-2000-user-service-logs/*.log" > device-test/service-startup.txt 2>/dev/null || true
-      if grep -q 'ClassNotFoundException' device-test/service-startup.txt && grep -q 'process-exit=1' device-test/service-startup.txt; then
-        echo 'PASS startup stderr and failed-process exit captured'
+      if grep -q 'ClassNotFoundException' device-test/service-startup.txt && grep -q 'process-exit=1' device-test/service-startup.txt && grep -q 'stage=user-service-call failed code=3' device-test/service-startup.txt && grep -q 'probe expected transaction failure' device-test/service-startup.txt; then
+        echo 'PASS startup stderr, failed-process exit and service-call exceptions captured'
         exit 0
       fi
       sleep 1

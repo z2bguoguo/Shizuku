@@ -62,6 +62,8 @@ public class ProbeService extends Binder {
         if (code == FIRST_CALL_TRANSACTION) {
             reply.writeNoException();
             reply.writeInt(android.os.Process.myUid());
+            reply.writeInt(android.os.Process.myPid());
+            reply.writeInt(Binder.getCallingUid());
             return true;
         }
         if (code == FIRST_CALL_TRANSACTION + 1) {
@@ -74,6 +76,13 @@ public class ProbeService extends Binder {
             }
             reply.writeNoException();
             reply.writeString(result);
+            return true;
+        }
+        if (code == FIRST_CALL_TRANSACTION + 2) {
+            throw new IllegalStateException("probe expected transaction failure");
+        }
+        if (code == 16777114) {
+            System.exit(0);
             return true;
         }
         return false;

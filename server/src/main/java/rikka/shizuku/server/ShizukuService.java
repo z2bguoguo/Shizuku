@@ -502,7 +502,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
             enforceManagerPermission("connectionDiagnostics");
             data.enforceInterface(ShizukuApiConstants.BINDER_DESCRIPTOR);
             reply.writeNoException();
-            reply.writeString(ConnectionDiagnostics.collect());
+            reply.writeString(ConnectionDiagnostics.collect(getUserServiceManager().collectDiagnostics()));
             return true;
         }
         if (code == ServerConstants.BINDER_TRANSACTION_getBlacklist
