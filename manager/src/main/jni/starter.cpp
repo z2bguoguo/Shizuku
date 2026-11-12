@@ -16,6 +16,7 @@
 #include "selinux.h"
 #include "cgroup.h"
 #include "logging.h"
+#include "server_identity.h"
 
 #ifdef DEBUG
 #define JAVA_DEBUGGABLE
@@ -236,7 +237,9 @@ int main(int argc, char *argv[]) {
         char name[1024];
         if (get_proc_name(pid, name, 1024) != 0) return;
 
-        if (strcmp(SERVER_NAME, name) != 0)
+        // All releases share the SDK Binder channel. Old randomized managers
+        // must not leave another main server delivering competing Binder handles.
+        if (!is_replaced_shizuku_server(name, SERVER_NAME))
             return;
 
         if (kill(pid, SIGKILL) == 0)

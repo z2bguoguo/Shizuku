@@ -22,7 +22,20 @@ with open(sys.argv[2], 'wb') as f:
 PY
 adb push "$RUNNER_TEMP/shizuku-probe-starter" /data/local/tmp/shizuku-probe-starter
 adb shell chmod 755 /data/local/tmp/shizuku-probe-starter
+LEGACY_NAME=app.p000000000000000000000000.m000000000000:service
+probe_path=$(adb shell pm path "$PROBE_ID" | tr -d '\r' | sed -n 's/^package://p' | head -n 1)
+test -n "$probe_path"
+adb shell "CLASSPATH='$probe_path' /system/bin/app_process /system/bin --nice-name='$LEGACY_NAME' app.shizuku.connectionprobe.LegacyServerFixture > /data/local/tmp/shizuku-legacy-fixture.log 2>&1 < /dev/null &"
+legacy_pid=""
+for attempt in $(seq 1 10); do
+  legacy_pid=$(adb shell cat /data/local/tmp/shizuku-legacy-fixture.log 2>/dev/null | tr -d '\r' | sed -n 's/^legacy-fixture-ready pid=//p' || true)
+  [[ "$legacy_pid" =~ ^[0-9]+$ ]] && break
+  sleep 1
+done
+[[ "$legacy_pid" =~ ^[0-9]+$ ]]
 adb shell /data/local/tmp/shizuku-probe-starter | tee device-test/startup.txt
+grep -F "info: killed $legacy_pid ($LEGACY_NAME)" device-test/startup.txt
+echo 'PASS previous randomized main-server process was replaced' | tee device-test/legacy-replacement.txt
 adb shell am start -W -n "$PROBE_ID/.ProbeActivity"
 for attempt in $(seq 1 75); do
   result=$(adb shell run-as "$PROBE_ID" cat files/result.txt 2>/dev/null | tr -d '\r' || true)

@@ -2,6 +2,7 @@ import os
 p = os.environ['PACKAGE_ID']
 print(f'''Personal fork build. Package: `{p}`
 
+- Startup: replace main-server processes left by previous randomized-package builds and the original manager, using exact main-role name matching. This prevents multiple old servers from continuing SDK Binder delivery after switching builds.
 - Diagnostics: include service liveness, connection callback counts, bounded lifecycle events and forwarded user-service call exceptions. No request/response payloads are logged. CI exercises 12 bind/reconnect rounds. This improves diagnosis; the intermittent physical-device failure is not yet confirmed fixed.
 - Compatibility: preserve the official v13.6.0 user-service runtime state. OEM null-state recovery now uses temporary bind state and restores it before client service construction. Android 14 CI verifies active-window reads and screenshots; affected physical-device behavior still needs verification.
 - SDK blacklist: Settings → SDK blacklist → select packages → Save. Start Shizuku first.
