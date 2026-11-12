@@ -17,7 +17,9 @@ final class DiagnosticBinder extends Binder {
 
     DiagnosticBinder(IBinder service) throws RemoteException {
         this.service = service;
-        attachInterface(null, service.getInterfaceDescriptor());
+        String descriptor = service.getInterfaceDescriptor();
+        attachInterface(null, descriptor);
+        System.err.println("stage=user-service-interface descriptor=" + descriptor);
     }
 
     private synchronized boolean trace(int code) {
@@ -37,7 +39,7 @@ final class DiagnosticBinder extends Binder {
             // calling identity or dispatch on another thread: clients may rely on it.
             boolean accepted = service.transact(code, data, reply, flags);
             if (trace) System.err.println("stage=user-service-call returned code=" + code
-                    + " accepted=" + accepted + " elapsedMs=" + (SystemClock.uptimeMillis() - start));
+                    + " accepted=" + accepted + " replyBytes=" + (reply == null ? 0 : reply.dataSize()) + " elapsedMs=" + (SystemClock.uptimeMillis() - start));
             return accepted;
         } catch (RemoteException | RuntimeException failure) {
             int count = failures.incrementAndGet();

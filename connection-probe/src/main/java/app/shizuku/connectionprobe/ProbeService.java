@@ -81,7 +81,7 @@ public class ProbeService extends Binder {
         if (code == FIRST_CALL_TRANSACTION + 2) {
             throw new IllegalStateException("probe expected transaction failure");
         }
-        if (code == 16777114) {
+        if (code == rikka.shizuku.ShizukuApiConstants.USER_SERVICE_TRANSACTION_destroy) {
             System.exit(0);
             return true;
         }
