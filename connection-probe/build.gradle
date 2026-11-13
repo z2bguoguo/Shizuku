@@ -9,6 +9,7 @@ android {
     buildFeatures { buildConfig = false }
 }
 dependencies {
+    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.1'
     implementation project(':api')
     implementation project(':provider')
 }

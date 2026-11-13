@@ -1,6 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
     <application android:label="Connection test" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity android:name=".QueueTargetActivity" android:enabled="false" android:exported="false" />
         <activity android:name=".ProbeActivity" android:exported="true" />
         <activity android:name=".ConcurrentProbeActivity" android:exported="true" android:launchMode="singleTask" />
         <provider android:name="rikka.shizuku.ShizukuProvider" android:authorities="${applicationId}.shizuku"

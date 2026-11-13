@@ -24,6 +24,25 @@ public class ConcurrentProbeActivity extends Activity {
     private final ServiceConnection[] connections = new ServiceConnection[2];
     private final CountDownLatch ready = new CountDownLatch(2);
     private boolean started, running;
+    private Object packageService;
+    private java.lang.reflect.Method setComponent;
+    private void packageMutation() throws Exception {
+        android.content.ComponentName target = new android.content.ComponentName(getPackageName(), QueueTargetActivity.class.getName());
+        setComponent.invoke(packageService, target, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                android.content.pm.PackageManager.DONT_KILL_APP, 0, "com.android.shell");
+        setComponent.invoke(packageService, target, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                android.content.pm.PackageManager.DONT_KILL_APP, 0, "com.android.shell");
+    }
+    private void preparePackageService() throws Exception {
+        org.lsposed.hiddenapibypass.HiddenApiBypass.addHiddenApiExemptions("");
+        java.lang.reflect.Field field = getPackageManager().getClass().getDeclaredField("mPM");field.setAccessible(true);
+        IBinder original = ((android.os.IInterface) field.get(getPackageManager())).asBinder();
+        Class<?> api = Class.forName("android.content.pm.IPackageManager");
+        packageService = Class.forName(api.getName()+"$Stub").getMethod("asInterface",IBinder.class)
+                .invoke(null,new rikka.shizuku.ShizukuBinderWrapper(original));
+        setComponent = api.getMethod("setComponentEnabledSetting",android.content.ComponentName.class,
+                int.class,int.class,int.class,String.class);
+    }
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         android.widget.TextView view = new android.widget.TextView(this);
@@ -66,9 +85,10 @@ public class ConcurrentProbeActivity extends Activity {
         ExecutorService workers=Executors.newFixedThreadPool(4);AtomicReference<Throwable> failed=new AtomicReference<>();
         try{
             if(!ready.await(15,TimeUnit.SECONDS))throw new IllegalStateException("Clients not ready");
+            preparePackageService();
             CountDownLatch complete=new CountDownLatch(4);
             for(int task=0;task<4;task++){final int index=task%2;workers.execute(()->{
-                try{for(int round=0;round<12;round++){call(services[index],2,true);if(round%3==0)call(services[index],3,true);if(round==4)call(services[index],4,true);Thread.sleep(100);}}
+                try{for(int round=0;round<12;round++){call(services[index],2,true);if(round%3==0){call(services[index],3,true);packageMutation();}if(round==4)call(services[index],4,true);Thread.sleep(100);}}
                 catch(Throwable error){failed.compareAndSet(null,error);}finally{complete.countDown();}
             });}
             if(!complete.await(45,TimeUnit.SECONDS))throw new IllegalStateException("Concurrent calls timed out");
@@ -77,6 +97,9 @@ public class ConcurrentProbeActivity extends Activity {
             Thread.sleep(200);
             for(int i=0;i<5;i++)call(services[1],2,true);
             String stats = stats(services[1]);
+            if(!stats.contains("package-mutations")||getPackageManager().getComponentEnabledSetting(
+                    new android.content.ComponentName(getPackageName(),QueueTargetActivity.class.getName()))
+                    !=android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED)throw new IllegalStateException("Ordinary SDK package mutation failed: "+stats);
             if (!stats.contains("gesturesFailed=0") || !java.util.regex.Pattern.compile("gesturesCompleted=[1-9][0-9]*").matcher(stats).find()) {
                 throw new IllegalStateException("Gesture coordination was not exercised successfully: " + stats);
             }
