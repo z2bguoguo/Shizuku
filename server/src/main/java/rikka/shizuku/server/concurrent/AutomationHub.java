@@ -320,15 +320,21 @@ public final class AutomationHub extends Binder {
                 }
                 if ("disableSelf".equals(method)) { unregister(subscriber.client); reply.writeNoException(); return true; }
                 if ("dispatchGesture".equals(method) || "sendGesture".equals(method)) {
-                    return queues.call("ui-input", subscriber.client, 10000, () -> {
+                    // Incoming Binder parcels may reference a read-only kernel buffer.
+                    // Rewrite sequence IDs only in an owned copy, never in the request.
+                    Parcel gestureRequest = Parcel.obtain();
+                    try {
+                        gestureRequest.appendFrom(data, 0, data.dataSize());
+                        return queues.call("ui-input", subscriber.client, 10000, () -> {
                         synchronized (state) { if (gesture != null) throw new IllegalStateException("Previous gesture is still running"); }
-                        data.enforceInterface(CONNECTION); int position = data.dataPosition(); int sequence = data.readInt();
+                        gestureRequest.setDataPosition(0);
+                        gestureRequest.enforceInterface(CONNECTION); int position = gestureRequest.dataPosition(); int sequence = gestureRequest.readInt();
                         Gesture pending = new Gesture(subscriber, sequence, nextGesture.incrementAndGet());
-                        data.setDataPosition(position); data.writeInt(pending.global); data.setDataPosition(0);
+                        gestureRequest.setDataPosition(position); gestureRequest.writeInt(pending.global); gestureRequest.setDataPosition(0);
                         synchronized (state) { gesture = pending; }
                         boolean accepted;
                         try {
-                            accepted = target.transact(code, data, reply, flags);
+                            accepted = target.transact(code, gestureRequest, reply, flags);
                             if (!accepted) throw new IllegalStateException("Platform gesture API rejected the transaction");
                             if (reply != null && reply.dataSize() > 0) {
                                 int positionAfterCall = reply.dataPosition();
@@ -339,7 +345,8 @@ public final class AutomationHub extends Binder {
                         catch (Exception error) { synchronized (state) { if (gesture == pending) gesture = null; } throw error; }
                         if (!pending.completed.await(10000, TimeUnit.MILLISECONDS)) throw new IllegalStateException("Gesture completion timed out; input stays reserved until callback");
                         return accepted;
-                    });
+                        });
+                    } finally { gestureRequest.recycle(); }
                 }
                 return route(CONNECTION, code, subscriber.client, () -> target.transact(code, data, reply, flags));
             } catch (RemoteException | RuntimeException failure) { throw failure; }

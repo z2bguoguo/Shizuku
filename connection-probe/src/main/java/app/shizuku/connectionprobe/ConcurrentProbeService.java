@@ -56,8 +56,13 @@ public class ConcurrentProbeService extends Binder {
                 android.accessibilityservice.AccessibilityServiceInfo info = service.getServiceInfo();
                 info.flags |= android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
                 service.setServiceInfo(info);
-                service.injectInputEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SHIFT_LEFT), true);
-                service.injectInputEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SHIFT_LEFT), true);
+                long down = android.os.SystemClock.uptimeMillis();
+                if (!service.injectInputEvent(new KeyEvent(down, down, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SHIFT_LEFT, 0), true)) {
+                    throw new IllegalStateException("Queued input-down injection was rejected");
+                }
+                if (!service.injectInputEvent(new KeyEvent(down, android.os.SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SHIFT_LEFT, 0), true)) {
+                    throw new IllegalStateException("Queued input-up injection was rejected");
+                }
                 reply.writeNoException(); reply.writeString("mutation-complete"); return true;
             }
             if (code == FIRST_CALL_TRANSACTION + 3) {
