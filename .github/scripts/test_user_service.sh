@@ -37,6 +37,19 @@ with open(sys.argv[2], 'wb') as f:
 PY
 adb push "$RUNNER_TEMP/shizuku-probe-starter" /data/local/tmp/shizuku-probe-starter
 adb shell chmod 755 /data/local/tmp/shizuku-probe-starter
+# Reproduce the reported failure deterministically: the provider cannot resolve,
+# and the manager starts cold. Broadcast bootstrap must carry every handoff.
+manager_id=$(tr -d '\r\n' < release/package-name.txt)
+# Android forbids shell from toggling production components. Root is used only
+# to arrange this fault; the server and every exercised service stay shell UID.
+adb root
+adb wait-for-device
+adb shell pm disable --user 0 "$manager_id/moe.shizuku.manager.ShizukuManagerProvider"
+adb shell am force-stop "$manager_id"
+adb unroot
+adb wait-for-device
+[[ "$(adb shell id -u | tr -d '\r')" == 2000 ]]
+
 LEGACY_NAME=app.p000000000000000000000000.m000000000000:service
 probe_path=$(adb shell pm path "$PROBE_ID" | tr -d '\r' | sed -n 's/^package://p' | head -n 1)
 test -n "$probe_path"
@@ -51,18 +64,6 @@ done
 adb shell /data/local/tmp/shizuku-probe-starter | tee device-test/startup.txt
 grep -F "info: killed $legacy_pid ($LEGACY_NAME)" device-test/startup.txt
 echo 'PASS previous randomized main-server process was replaced' | tee device-test/legacy-replacement.txt
-# Reproduce the reported failure deterministically: the provider cannot resolve,
-# and the manager starts cold. Broadcast bootstrap must carry every handoff.
-manager_id=$(tr -d '\r\n' < release/package-name.txt)
-# Android forbids shell from toggling production components. Root is used only
-# to arrange this fault; the server and every exercised service stay shell UID.
-adb root
-adb wait-for-device
-adb shell pm disable --user 0 "$manager_id/moe.shizuku.manager.ShizukuManagerProvider"
-adb shell am force-stop "$manager_id"
-adb unroot
-adb wait-for-device
-[[ "$(adb shell id -u | tr -d '\r')" == 2000 ]]
 adb shell am start -W -n "$PROBE_ID/.ProbeActivity"
 for attempt in $(seq 1 75); do
   result=$(adb shell run-as "$PROBE_ID" cat files/result.txt 2>/dev/null | tr -d '\r' || true)
