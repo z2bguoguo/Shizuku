@@ -52,6 +52,10 @@ public class ConcurrentProbeService extends Binder {
                 String result = inspect(); reply.writeNoException(); reply.writeString(result); return true;
             }
             if (code == FIRST_CALL_TRANSACTION + 2) {
+                Class<?> input = Class.forName("android.hardware.input.InputManagerGlobal");
+                Object inputManager = input.getMethod("getInstance").invoke(null);
+                int[] devices = (int[]) input.getMethod("getInputDeviceIds").invoke(inputManager);
+                if (devices == null) throw new IllegalStateException("Input-device listener registration failed");
                 UiAutomation service = connect();
                 android.accessibilityservice.AccessibilityServiceInfo info = service.getServiceInfo();
                 info.flags |= android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
@@ -85,7 +89,7 @@ public class ConcurrentProbeService extends Binder {
                 reply.writeNoException(); reply.writeString("gesture-complete"); return true;
             }
             if (code == FIRST_CALL_TRANSACTION + 4) {
-                IBinder broker = (IBinder) Class.forName("moe.shizuku.starter.concurrent.BrokerDiscovery").getMethod("get").invoke(null);
+                IBinder broker = (IBinder) Class.forName("moe.shizuku.starter.concurrent.BrokerDiscovery", true, ClassLoader.getSystemClassLoader()).getMethod("get").invoke(null);
                 Parcel request = Parcel.obtain(), response = Parcel.obtain();
                 try {
                     request.writeInterfaceToken("rikka.shizuku.concurrent.AutomationHub");
@@ -95,8 +99,10 @@ public class ConcurrentProbeService extends Binder {
                 } finally { request.recycle(); response.recycle(); }
             }
             if (code == rikka.shizuku.ShizukuApiConstants.USER_SERVICE_TRANSACTION_destroy) {
-                if (automation != null) UiAutomation.class.getMethod("disconnect").invoke(automation);
-                worker.quitSafely(); System.exit(0); return true;
+                try { if (automation != null) UiAutomation.class.getMethod("disconnect").invoke(automation); }
+                catch (Exception ignored) { /* Destruction comes from the server UID, not the app that connected. */ }
+                finally { worker.quitSafely(); System.exit(0); }
+                return true;
             }
         } catch (Exception error) {
             error.printStackTrace(System.err);

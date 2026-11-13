@@ -36,7 +36,10 @@ public final class ResourcePolicy {
         String method = method(descriptor, code);
         if (method == null || method.startsWith("get") || method.startsWith("is") || method.startsWith("has")
                 || method.startsWith("check") || method.startsWith("query") || method.startsWith("find")
-                || method.startsWith("capture") || method.startsWith("takeScreenshot")) return null;
+                || method.startsWith("capture") || method.startsWith("takeScreenshot")
+                || method.startsWith("register") || method.startsWith("unregister")
+                || method.startsWith("open") || method.startsWith("create")
+                || method.startsWith("monitor") || method.startsWith("attach")) return null;
         return resource;
     }
 }

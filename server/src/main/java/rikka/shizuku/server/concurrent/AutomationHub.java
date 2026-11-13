@@ -319,7 +319,8 @@ public final class AutomationHub extends Binder {
                         if(request.readInt()==0)throw new IllegalArgumentException("Missing gesture steps");
                         android.os.Parcelable.Creator<?> creator=(android.os.Parcelable.Creator<?>)Class.forName("android.content.pm.ParceledListSlice").getField("CREATOR").get(null);
                         Object packed=creator.createFromParcel(request);
-                        java.util.List<?> steps=(java.util.List<?>)packed.getClass().getMethod("getList").invoke(packed);
+                        java.lang.reflect.Method getList=packed.getClass().getMethod("getList");getList.setAccessible(true);
+                        java.util.List<?> steps=(java.util.List<?>)getList.invoke(packed);
                         int display="dispatchGesture".equals(method)?request.readInt():0;
                         return queues.call("ui-input",subscriber.client,10000,()->{
                             Gesture pending=new Gesture(subscriber,sequence,nextGesture.incrementAndGet());
