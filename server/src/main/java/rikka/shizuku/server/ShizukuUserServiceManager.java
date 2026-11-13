@@ -21,7 +21,7 @@ import rikka.hidden.compat.PackageManagerApis;
 import rikka.hidden.compat.UserManagerApis;
 import rikka.shizuku.server.util.UserHandleCompat;
 
-public class ShizukuUserServiceManager extends UserServiceManager {
+public class ShizukuUserServiceManager extends ConcurrentUserServiceManager {
 
     private final Map<UserServiceRecord, ApkChangedListener> apkChangedListeners = new ArrayMap<>();
     private final Map<UserServiceRecord, String> diagnosticRecords = new ArrayMap<>();
@@ -77,7 +77,7 @@ public class ShizukuUserServiceManager extends UserServiceManager {
         }
         text.append("Recent service lifecycle (server uptime):\n");
         for (String event : events) text.append(event).append('\n');
-        return text.toString();
+        return startupQueueDiagnostics() + text.toString();
     }
 
     public ShizukuUserServiceManager() {

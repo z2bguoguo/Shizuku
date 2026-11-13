@@ -1,0 +1,14 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'app.shizuku.connectionprobe'
+    defaultConfig { applicationId 'app.shizuku.connectionpeer'; versionCode 1; versionName '1' }
+    buildFeatures { buildConfig = false }
+    sourceSets.main {
+        java.srcDirs = ['../connection-probe/src/main/java']
+        manifest.srcFile '../connection-probe/src/main/AndroidManifest.xml'
+    }
+}
+dependencies {
+    implementation project(':api')
+    implementation project(':provider')
+}

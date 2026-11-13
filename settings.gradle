@@ -82,3 +82,6 @@ project(':hidden-api-stub').projectDir = file("$root${File.separator}hidden-api-
 
 // Test-only client; never included in the manager APK or releases.
 include ':connection-probe'
+
+// Second independent UID for cross-application concurrency verification.
+include ':connection-peer'

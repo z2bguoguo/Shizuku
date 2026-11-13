@@ -306,3 +306,9 @@ The [GitHub Actions workflow](.github/workflows/app.yml) builds and signs the re
 Upstream: **[RikkaApps/Shizuku](https://github.com/RikkaApps/Shizuku)** · [Official setup guide](https://shizuku.rikka.app/guide/setup/) · [Developer API](https://github.com/RikkaApps/Shizuku-API) · [Fork implementation notes](FORK.md).
 
 The repository declares **[Apache-2.0](LICENSE)** for its source code. Preserve copyright/license notices and review the [upstream README’s special notices](https://github.com/RikkaApps/Shizuku#license) concerning app identity, launcher artwork, branding, and permission names. This project is not affiliated with or endorsed by the upstream Shizuku maintainers.
+
+### 多应用并发协调
+
+此 fork 增加共享 UiAutomation 注册、客户端独立回调、手势编号映射，以及输入/窗口/任务与包管理写操作的分资源轮询队列。普通读取保持并行；用户服务最多四路并行启动，超时和断开的排队请求会被移除。诊断页面显示共享客户端数、手势状态和队列统计。
+
+并发层覆盖普通 Shizuku Binder 转发和用户服务中支持的系统接口入口。原生代码、已缓存接口、独立 shell 子进程及跨多个调用的完整工作流仍需调用方配合；设备前台窗口和安全窗口限制保持不变。支持范围与双应用并发验证说明见 [FORK.md](FORK.md#concurrent-clients-and-resource-coordination)。

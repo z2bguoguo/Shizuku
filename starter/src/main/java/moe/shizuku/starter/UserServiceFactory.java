@@ -88,6 +88,13 @@ public class UserServiceFactory {
             mInitialApplication.setAccessible(true);
             mInitialApplication.set(activityThread, application);
 
+            try {
+                moe.shizuku.starter.concurrent.AutomationClient.install(
+                        moe.shizuku.starter.concurrent.BrokerDiscovery.get());
+            } catch (Exception | LinkageError unsupported) {
+                System.err.println("stage=shared-automation unavailable; platform path retained");
+                unsupported.printStackTrace(System.err);
+            }
             ClassLoader classLoader = application.getClassLoader();
             Class<?> serviceClass = classLoader.loadClass(cls);
             Constructor<?> constructorWithContext = null;

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 APK=$(find release -name '*.apk' -print -quit)
-PROBE_APK=connection-probe/build/outputs/apk/debug/connection-probe-debug.apk
+PROBE_APK=$(find probe-apks -name connection-probe-debug.apk -print -quit)
+PEER_APK=$(find probe-apks -name connection-peer-debug.apk -print -quit)
 PROBE_ID=app.shizuku.connectionprobe
 mkdir -p device-test
 cleanup() {
@@ -43,17 +44,23 @@ for attempt in $(seq 1 75); do
     printf '%s\n' "$result" | tee device-test/result.txt
     [[ "$result" == PASS* ]] || exit 1
     manager_id=$(tr -d '\r\n' < release/package-name.txt)
+    captured=false
     for capture_attempt in $(seq 1 15); do
       adb shell "cat /data/local/tmp/$manager_id-2000-user-service-logs/*.log" > device-test/service-startup.txt 2>/dev/null || true
       if grep -q 'ClassNotFoundException' device-test/service-startup.txt && grep -q 'process-exit=1' device-test/service-startup.txt && grep -q 'stage=user-service-call failed code=3' device-test/service-startup.txt && grep -q 'probe expected transaction failure' device-test/service-startup.txt; then
         echo 'PASS startup stderr, failed-process exit and service-call exceptions captured'
-        exit 0
+        captured=true
+        break
       fi
       sleep 1
     done
-    cat device-test/service-startup.txt
-    echo 'FAIL bootstrap error was not captured'
-    exit 1
+    if [[ "$captured" != true ]]; then
+      cat device-test/service-startup.txt
+      echo 'FAIL bootstrap error was not captured'
+      exit 1
+    fi
+    bash .github/scripts/test_concurrent_clients.sh "$PEER_APK"
+    exit 0
   fi
   sleep 1
 done

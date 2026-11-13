@@ -25,6 +25,21 @@ class ShizukuManagerProvider : ShizukuProvider() {
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
+        if (method == moe.shizuku.starter.concurrent.AutomationProtocol.METHOD) {
+            check(Binder.getCallingUid() == 0 || Binder.getCallingUid() == 2000) { "Privileged user-service process required" }
+            if (!Shizuku.pingBinder()) return null
+            val identity = Binder.clearCallingIdentity()
+            val request = android.os.Parcel.obtain()
+            val response = android.os.Parcel.obtain()
+            try {
+                request.writeInterfaceToken("moe.shizuku.server.IShizukuService")
+                check(Shizuku.getBinder()?.transact(moe.shizuku.starter.concurrent.AutomationProtocol.GET, request, response, 0) == true)
+                response.readException()
+                return Bundle().apply { putBinder(moe.shizuku.starter.concurrent.AutomationProtocol.EXTRA, response.readStrongBinder()) }
+            } finally {
+                request.recycle(); response.recycle(); Binder.restoreCallingIdentity(identity)
+            }
+        }
         if (extras == null) return null
 
         return if (method == METHOD_SEND_USER_SERVICE) {

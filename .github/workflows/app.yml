@@ -74,7 +74,7 @@ jobs:
           python3 tests/check_fork.py
           python3 tests/check_native_server_names.py
           chmod +x gradlew
-          ./gradlew :manager:testReleaseUnitTest :manager:assembleRelease :connection-probe:assembleDebug --stacktrace
+          ./gradlew :manager:testReleaseUnitTest :manager:assembleRelease :connection-probe:assembleDebug :connection-peer:assembleDebug --stacktrace
       - name: Print failed test reports
         if: failure()
         run: find manager/build/test-results -name '*.xml' -exec cat {} + 2>/dev/null || true
@@ -102,7 +102,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: probe-${{ env.RELEASE_TAG }}
-          path: connection-probe/build/outputs/apk/debug/*.apk
+          path: |
+            connection-probe/build/outputs/apk/debug/*.apk
+            connection-peer/build/outputs/apk/debug/*.apk
           if-no-files-found: error
       - name: Remove signing material
         if: always()
@@ -132,7 +134,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: probe-${{ needs.build.outputs.release_tag }}
-          path: connection-probe/build/outputs/apk/debug/
+          path: probe-apks/
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

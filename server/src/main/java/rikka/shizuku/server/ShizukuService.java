@@ -62,6 +62,9 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
         DdmHandleAppName.setAppName(MANAGER_APPLICATION_ID + ":service", 0);
         RishConfig.setLibraryPath(System.getProperty("shizuku.library.path"));
 
+        try {
+            Class.forName("com.android.internal.os.BinderInternal").getMethod("setMaxThreads", int.class).invoke(null, 32);
+        } catch (ReflectiveOperationException unsupported) { Log.w("ShizukuService", "Using platform Binder thread limit", unsupported); }
         Looper.prepareMainLooper();
         new ShizukuService();
         Looper.loop();
@@ -88,6 +91,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
     private final ShizukuClientManager clientManager;
     private final ShizukuConfigManager configManager;
     private final int managerAppId;
+    private final rikka.shizuku.server.concurrent.AutomationHub automationHub = new rikka.shizuku.server.concurrent.AutomationHub();
 
     public ShizukuService() {
         super();
@@ -498,11 +502,36 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
         // No SDK callback or Binder API response for a blocked UID, including cached handles.
         // Return immediately; never park a binder thread to simulate a timeout.
         if (isSdkBlocked(Binder.getCallingUid())) return false;
+        if (code == moe.shizuku.starter.concurrent.AutomationProtocol.GET) {
+            enforceManagerPermission("getConcurrencyBroker");
+            data.enforceInterface(ShizukuApiConstants.BINDER_DESCRIPTOR);
+            reply.writeNoException(); reply.writeStrongBinder(automationHub); return true;
+        }
+        if (code == ShizukuApiConstants.BINDER_TRANSACTION_transact) {
+            data.enforceInterface(ShizukuApiConstants.BINDER_DESCRIPTOR);
+            enforceCallingPermission("transactRemote");
+            IBinder target = data.readStrongBinder(); int targetCode = data.readInt();
+            ClientRecord client = clientManager.findClient(Binder.getCallingUid(), Binder.getCallingPid());
+            int targetFlags = client != null && client.apiVersion >= 13 ? data.readInt() : flags;
+            Object caller = client == null ? Binder.getCallingUid() : client.client.asBinder();
+            Parcel request = Parcel.obtain();
+            try {
+                request.appendFrom(data, data.dataPosition(), data.dataAvail());
+                automationHub.route(target.getInterfaceDescriptor(), targetCode, caller, () -> {
+                    long identity = Binder.clearCallingIdentity();
+                    try { return target.transact(targetCode, request, reply, targetFlags); }
+                    finally { Binder.restoreCallingIdentity(identity); }
+                });
+                return true;
+            } catch (RemoteException | RuntimeException failure) { throw failure; }
+            catch (Exception failure) { throw new IllegalStateException("Platform resource queue: " + failure.getMessage(), failure); }
+            finally { request.recycle(); }
+        }
         if (code == ServerConstants.BINDER_TRANSACTION_getConnectionDiagnostics) {
             enforceManagerPermission("connectionDiagnostics");
             data.enforceInterface(ShizukuApiConstants.BINDER_DESCRIPTOR);
             reply.writeNoException();
-            reply.writeString(ConnectionDiagnostics.collect(getUserServiceManager().collectDiagnostics()));
+            reply.writeString(ConnectionDiagnostics.collect(getUserServiceManager().collectDiagnostics() + "\n" + automationHub.diagnostics()));
             return true;
         }
         if (code == ServerConstants.BINDER_TRANSACTION_getBlacklist
