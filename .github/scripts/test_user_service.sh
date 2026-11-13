@@ -51,6 +51,11 @@ done
 adb shell /data/local/tmp/shizuku-probe-starter | tee device-test/startup.txt
 grep -F "info: killed $legacy_pid ($LEGACY_NAME)" device-test/startup.txt
 echo 'PASS previous randomized main-server process was replaced' | tee device-test/legacy-replacement.txt
+# Reproduce the reported failure deterministically: the provider cannot resolve,
+# and the manager starts cold. Broadcast bootstrap must carry every handoff.
+manager_id=$(tr -d '\r\n' < release/package-name.txt)
+adb shell am force-stop "$manager_id"
+adb shell pm disable --user 0 "$manager_id/moe.shizuku.manager.ShizukuManagerProvider"
 adb shell am start -W -n "$PROBE_ID/.ProbeActivity"
 for attempt in $(seq 1 75); do
   result=$(adb shell run-as "$PROBE_ID" cat files/result.txt 2>/dev/null | tr -d '\r' || true)
@@ -73,6 +78,8 @@ for attempt in $(seq 1 75); do
       echo 'FAIL bootstrap error was not captured'
       exit 1
     fi
+    grep -q 'stage=manager-handoff broadcast relay ok' device-test/service-startup.txt
+    echo 'PASS cold manager bootstrap and service handoff with provider disabled'
     bash .github/scripts/test_concurrent_clients.sh "$PEER_APK"
     exit 0
   fi

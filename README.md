@@ -312,3 +312,7 @@ The repository declares **[Apache-2.0](LICENSE)** for its source code. Preserve 
 此 fork 增加共享 UiAutomation 注册、客户端独立回调、手势编号映射，以及输入/窗口/任务与包管理写操作的分资源轮询队列。普通读取保持并行；用户服务最多四路并行启动，超时和断开的排队请求会被移除。诊断页面显示共享客户端数、手势状态和队列统计。
 
 并发层覆盖普通 Shizuku Binder 转发和用户服务中支持的系统接口入口。原生代码、已缓存接口、独立 shell 子进程及跨多个调用的完整工作流仍需调用方配合；设备前台窗口和安全窗口限制保持不变。支持范围与双应用并发验证说明见 [FORK.md](FORK.md#concurrent-clients-and-resource-coordination)。
+
+### 后台启动交接兼容性
+
+用户服务启动使用仅 shell/root 可发送的显式后台广播取得共享代理，并通过管理器 Binder 中继完成服务交接；不打开界面。服务端在每次启动前提供有效的服务器 Binder，管理器冷启动也能恢复。Provider 通道保留兼容回退，失效时不再强停管理器，避免影响其他客户端。Android 14 设备测试额外禁用管理器 Provider、强停管理器，再验证服务创建及双应用并发。此修复针对 Provider 不可用导致的连接超时，不能仅凭测试通过就认定所有 OEM 的空窗口问题已解决。

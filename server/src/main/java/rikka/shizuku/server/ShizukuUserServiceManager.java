@@ -80,8 +80,11 @@ public class ShizukuUserServiceManager extends ConcurrentUserServiceManager {
         return startupQueueDiagnostics() + text.toString();
     }
 
-    public ShizukuUserServiceManager() {
+    private final IBinder server;
+
+    public ShizukuUserServiceManager(IBinder server) {
         super();
+        this.server = server;
     }
 
     @Override
@@ -89,6 +92,11 @@ public class ShizukuUserServiceManager extends ConcurrentUserServiceManager {
             UserServiceRecord record, String key, String token, String packageName,
             String classname, String processNameSuffix, int callingUid, boolean use32Bits, boolean debug) {
 
+        try {
+            moe.shizuku.starter.concurrent.ManagerBootstrap.seed(server);
+        } catch (Exception failure) {
+            LOGGER.w(failure, "Cannot seed background manager bootstrap; provider fallback retained");
+        }
         String appProcess = "/system/bin/app_process";
         if (use32Bits && new File("/system/bin/app_process32").exists()) {
             appProcess = "/system/bin/app_process32";

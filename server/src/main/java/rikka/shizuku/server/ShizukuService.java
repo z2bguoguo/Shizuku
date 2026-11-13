@@ -135,7 +135,7 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
 
     @Override
     public ShizukuUserServiceManager onCreateUserServiceManager() {
-        return new ShizukuUserServiceManager();
+        return new ShizukuUserServiceManager(this);
     }
 
     @Override

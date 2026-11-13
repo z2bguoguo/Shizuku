@@ -9,6 +9,11 @@ import rikka.hidden.compat.ActivityManagerApis;
 public final class BrokerDiscovery {
     private BrokerDiscovery() { }
     public static IBinder get() throws Exception {
+        try { return ManagerBootstrap.getBroker(); }
+        catch (Exception failure) {
+            System.err.println("stage=manager-bootstrap broadcast unavailable; trying provider");
+            failure.printStackTrace(System.err);
+        }
         String authority = rikka.shizuku.common.BuildConfig.MANAGER_APPLICATION_ID + ".shizuku";
         IContentProvider provider = ActivityManagerApis.getContentProviderExternal(authority, 0, null, authority);
         if (provider == null) throw new IllegalStateException("Manager provider unavailable for concurrency broker");

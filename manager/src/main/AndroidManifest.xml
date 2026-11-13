@@ -67,6 +67,9 @@
         tools:remove="android:appComponentFactory"
         tools:targetApi="33">
 
+        <receiver android:name=".BootstrapReceiver" android:exported="true"
+            android:permission="android.permission.DUMP" />
+
         <activity
             android:name=".MainActivity"
             android:banner="@mipmap/banner"

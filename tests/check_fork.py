@@ -34,3 +34,8 @@ for p in (r / 'manager/src/main/res').glob('*/privacy.xml'):
     for key, value in strings.items():
         assert value and ('%1$s' in value) == ('%1$s' in base[key]), f'Format argument mismatch: {p}:{key}'
 print('Launcher recovery and localized format contracts passed')
+
+receivers = {x.get(a+'name'): x for x in app.findall('receiver')}
+bootstrap = next(v for k,v in receivers.items() if k.endswith('.BootstrapReceiver'))
+assert bootstrap.get(a+'exported') == 'true'
+assert bootstrap.get(a+'permission') == 'android.permission.DUMP', 'Bootstrap must reject ordinary app senders'

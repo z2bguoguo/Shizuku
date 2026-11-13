@@ -94,7 +94,16 @@ public class ServiceStarter {
     }
 
     private static boolean sendBinder(IBinder binder, String token) {
-        return sendBinder(binder, token, true);
+        try {
+            shizukuBinder = moe.shizuku.starter.concurrent.ManagerBootstrap.handoff(binder, token);
+            shizukuBinder.linkToDeath(() -> System.exit(0), 0);
+            System.err.println("stage=manager-handoff broadcast relay ok");
+            return true;
+        } catch (Exception failure) {
+            System.err.println("stage=manager-handoff broadcast relay unavailable; trying provider");
+            failure.printStackTrace(System.err);
+            return sendBinder(binder, token, true);
+        }
     }
 
     private static boolean sendBinder(IBinder binder, String token, boolean retry) {
@@ -114,10 +123,7 @@ public class ServiceStarter {
                 Log.e(TAG, String.format("provider is dead %s %d", name, userId));
 
                 if (retry) {
-                    // For unknown reason, sometimes this could happens
-                    // Kill Shizuku app and try again could work
-                    ActivityManagerApis.forceStopPackageNoThrow(packageName, userId);
-                    Log.e(TAG, String.format("kill %s in user %d and try again", packageName, userId));
+                    Log.e(TAG, "Reacquire provider without stopping other clients");
                     Thread.sleep(1000);
                     return sendBinder(binder, token, false);
                 }
