@@ -30,4 +30,13 @@ for app in "$PEER" "$PRIMARY"; do
 done
 # Disconnect the second application while the primary retains one live client.
 adb shell am force-stop "$PEER"
+adb shell am start -W -n "$PRIMARY/app.shizuku.connectionprobe.ConcurrentProbeActivity" --ez verify true
+survivor=""
+for attempt in $(seq 1 15); do
+  survivor=$(adb shell run-as "$PRIMARY" cat files/concurrent-survivor.txt 2>/dev/null | tr -d '\r' || true)
+  [[ -n "$survivor" ]] && break
+  sleep 1
+done
+printf '%s\n' "$survivor" | tee device-test/concurrent-survivor.txt
+[[ "$survivor" == PASS* ]]
 echo 'PASS two independent app UIDs, four persistent clients, concurrent reads and queued input mutations'

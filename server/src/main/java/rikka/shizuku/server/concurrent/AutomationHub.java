@@ -15,8 +15,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import moe.shizuku.starter.concurrent.AutomationProtocol;
@@ -51,7 +49,6 @@ public final class AutomationHub extends Binder {
     }
     private static final class Gesture {
         final Subscriber client; final int original, global;
-        final CountDownLatch completed = new CountDownLatch(1);
         Gesture(Subscriber client, int original, int global) { this.client = client; this.original = original; this.global = global; }
     }
     private static Object invoke(Object receiver, String name, Object... args) throws Exception {
@@ -121,7 +118,10 @@ public final class AutomationHub extends Binder {
             synchronized (state) { ready = realConnection != null; }
             if (ready) { sendInit(subscriber); updateInfo(); }
         } catch (Exception failure) {
-            if (subscriber != null) synchronized (state) { clients.remove(binder); binder.unlinkToDeath(subscriber, 0); }
+            if (subscriber != null) {
+                try { unregister(binder); }
+                catch (Exception cleanup) { failure.addSuppressed(cleanup); }
+            }
             throw failure;
         } finally { control.unlock(); }
     }
@@ -142,7 +142,7 @@ public final class AutomationHub extends Binder {
                 registered = false; generation++;
                 synchronized (state) {
                     realConnection = null; windowToken = null;
-                    if (gesture != null) { gesture.completed.countDown(); gesture = null; }
+                    gesture = null;
                 }
             } else if (!empty) updateInfo();
         } finally { control.unlock(); }
@@ -243,7 +243,7 @@ public final class AutomationHub extends Binder {
         String header;
         synchronized (state) { header = "Shared automation: clients=" + clients.size() + " registered=" + registered
                 + " connectionReady=" + (realConnection != null) + " pendingGesture=" + (gesture != null)
-                + " gestureIds=" + nextGesture.get() + " gesturesCompleted=" + gesturesCompleted + " gesturesFailed=" + gesturesFailed + "\n"; }
+                + " activeGestureId=" + (gesture == null ? -1 : gesture.global) + " gestureIds=" + nextGesture.get() + " gesturesCompleted=" + gesturesCompleted + " gesturesFailed=" + gesturesFailed + "\n"; }
         return header + queues.diagnostics();
     }
 
@@ -272,17 +272,9 @@ public final class AutomationHub extends Binder {
                 } else for (Subscriber subscriber : snapshot) sendInit(subscriber);
                 return true;
             }
-            if (code == transaction(CLIENT, "onPerformGestureResult")) {
-                data.enforceInterface(CLIENT); int sequence = data.readInt(); boolean success = data.readInt() != 0;
-                Gesture pending;
-                synchronized (state) { pending = gesture; if (pending == null || pending.global != sequence) return true; gesture = null; if (success) gesturesCompleted++; else gesturesFailed++; }
-                Parcel converted = Parcel.obtain();
-                try {
-                    converted.writeInterfaceToken(CLIENT); converted.writeInt(pending.original); converted.writeInt(success ? 1 : 0);
-                    pending.client.client.transact(code, converted, null, IBinder.FLAG_ONEWAY);
-                } finally { pending.completed.countDown(); converted.recycle(); }
-                return true;
-            }
+            // Full gestures are executed by the coordinator: the platform's
+            // UiAutomationService does not implement dispatchGesture callbacks.
+            if (code == transaction(CLIENT, "onPerformGestureResult")) return true;
             ArrayList<Subscriber> snapshot;
             synchronized (state) { snapshot = new ArrayList<>(clients.values()); }
             for (Subscriber subscriber : snapshot) {
@@ -320,33 +312,33 @@ public final class AutomationHub extends Binder {
                 }
                 if ("disableSelf".equals(method)) { unregister(subscriber.client); reply.writeNoException(); return true; }
                 if ("dispatchGesture".equals(method) || "sendGesture".equals(method)) {
-                    // Incoming Binder parcels may reference a read-only kernel buffer.
-                    // Rewrite sequence IDs only in an owned copy, never in the request.
-                    Parcel gestureRequest = Parcel.obtain();
+                    Parcel request = Parcel.obtain();
                     try {
-                        gestureRequest.appendFrom(data, 0, data.dataSize());
-                        return queues.call("ui-input", subscriber.client, 10000, () -> {
-                        synchronized (state) { if (gesture != null) throw new IllegalStateException("Previous gesture is still running"); }
-                        gestureRequest.setDataPosition(0);
-                        gestureRequest.enforceInterface(CONNECTION); int position = gestureRequest.dataPosition(); int sequence = gestureRequest.readInt();
-                        Gesture pending = new Gesture(subscriber, sequence, nextGesture.incrementAndGet());
-                        gestureRequest.setDataPosition(position); gestureRequest.writeInt(pending.global); gestureRequest.setDataPosition(0);
-                        synchronized (state) { gesture = pending; }
-                        boolean accepted;
-                        try {
-                            accepted = target.transact(code, gestureRequest, reply, flags);
-                            if (!accepted) throw new IllegalStateException("Platform gesture API rejected the transaction");
-                            if (reply != null && reply.dataSize() > 0) {
-                                int positionAfterCall = reply.dataPosition();
-                                try { reply.setDataPosition(0); reply.readException(); }
-                                finally { reply.setDataPosition(positionAfterCall); }
+                        request.appendFrom(data,0,data.dataSize());request.setDataPosition(0);request.enforceInterface(CONNECTION);
+                        int sequence=request.readInt();
+                        if(request.readInt()==0)throw new IllegalArgumentException("Missing gesture steps");
+                        android.os.Parcelable.Creator<?> creator=(android.os.Parcelable.Creator<?>)Class.forName("android.content.pm.ParceledListSlice").getField("CREATOR").get(null);
+                        Object packed=creator.createFromParcel(request);
+                        java.util.List<?> steps=(java.util.List<?>)packed.getClass().getMethod("getList").invoke(packed);
+                        int display="dispatchGesture".equals(method)?request.readInt():0;
+                        return queues.call("ui-input",subscriber.client,10000,()->{
+                            Gesture pending=new Gesture(subscriber,sequence,nextGesture.incrementAndGet());
+                            synchronized(state){if(gesture!=null)throw new IllegalStateException("Previous gesture is still running");gesture=pending;}
+                            boolean success=false;
+                            try { success=GestureEngine.execute(steps,display,()->{
+                                synchronized(state){return clients.containsKey(subscriber.client)&&subscriber.client.isBinderAlive();}
+                            }); }
+                            finally {
+                                synchronized(state){if(gesture==pending)gesture=null;if(success)gesturesCompleted++;else gesturesFailed++;}
+                                Parcel callback=Parcel.obtain();
+                                try {callback.writeInterfaceToken(CLIENT);callback.writeInt(pending.original);callback.writeInt(success?1:0);
+                                    pending.client.client.transact(transaction(CLIENT,"onPerformGestureResult"),callback,null,IBinder.FLAG_ONEWAY);
+                                } catch(RemoteException disconnected) { /* Client death is handled by its subscription. */ }
+                                finally {callback.recycle();}
                             }
-                        }
-                        catch (Exception error) { synchronized (state) { if (gesture == pending) gesture = null; } throw error; }
-                        if (!pending.completed.await(10000, TimeUnit.MILLISECONDS)) throw new IllegalStateException("Gesture completion timed out; input stays reserved until callback");
-                        return accepted;
+                            if(reply!=null)reply.writeNoException();return true;
                         });
-                    } finally { gestureRequest.recycle(); }
+                    } finally {request.recycle();}
                 }
                 return route(CONNECTION, code, subscriber.client, () -> target.transact(code, data, reply, flags));
             } catch (RemoteException | RuntimeException failure) { throw failure; }

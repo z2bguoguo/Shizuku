@@ -28,7 +28,7 @@ public class ConcurrentProbeActivity extends Activity {
         super.onCreate(state);
         android.widget.TextView view = new android.widget.TextView(this);
         view.setText("Independent application concurrency test");view.setTextSize(24);setContentView(view);
-        new File(getFilesDir(), "concurrent-ready.txt").delete();new File(getFilesDir(),"concurrent-result.txt").delete();
+        new File(getFilesDir(), "concurrent-ready.txt").delete();new File(getFilesDir(),"concurrent-result.txt").delete();new File(getFilesDir(),"concurrent-survivor.txt").delete();
         Shizuku.addBinderReceivedListenerSticky(this::bind);
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             if(ready.getCount()!=0) write("concurrent-ready.txt","FAIL startup timeout");
@@ -54,7 +54,14 @@ public class ConcurrentProbeActivity extends Activity {
             Shizuku.bindUserService(args[i],connections[i]);
         }
     }
-    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);if(intent.getBooleanExtra("run",false)&&!running){running=true;new Thread(this::exercise,"concurrent-test").start();}}
+    @Override protected void onNewIntent(Intent intent){
+        super.onNewIntent(intent);
+        if(intent.getBooleanExtra("run",false)&&!running){running=true;new Thread(this::exercise,"concurrent-test").start();}
+        if(intent.getBooleanExtra("verify",false))new Thread(()->{
+            try{for(int i=0;i<5;i++)call(services[1],2,true);write("concurrent-survivor.txt","PASS remaining app still reads after peer process exits");}
+            catch(Exception error){write("concurrent-survivor.txt","FAIL "+android.util.Log.getStackTraceString(error));}
+        },"verify-survivor").start();
+    }
     private void exercise(){
         ExecutorService workers=Executors.newFixedThreadPool(4);AtomicReference<Throwable> failed=new AtomicReference<>();
         try{
