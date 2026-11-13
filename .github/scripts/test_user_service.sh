@@ -24,8 +24,8 @@ PYLOG
 }
 trap cleanup EXIT
 adb install "$APK"
-adb install "$PROBE_APK"
-adb install "$PEER_APK"
+adb install -t "$PROBE_APK"
+adb install -t "$PEER_APK"
 adb shell pm grant "$PROBE_ID" moe.shizuku.manager.permission.API_V23
 adb shell pm grant app.shizuku.connectionpeer moe.shizuku.manager.permission.API_V23
 python3 - "$APK" "$RUNNER_TEMP/shizuku-probe-starter" <<'PY'
