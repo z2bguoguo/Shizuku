@@ -59,3 +59,8 @@
 -repackageclasses rikka.shizuku
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# Privileged user-service extension/discovery entry point; also exercised from a separate client APK.
+-keep class moe.shizuku.starter.concurrent.BrokerDiscovery {
+    public static android.os.IBinder get();
+}

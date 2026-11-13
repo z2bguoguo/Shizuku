@@ -8,12 +8,26 @@ mkdir -p device-test
 cleanup() {
   adb logcat -d -v threadtime > device-test/logcat.txt || true
   adb shell ps -A > device-test/processes.txt || true
+  if [[ -f release/package-name.txt ]]; then
+    local manager_id
+    manager_id=$(tr -d '\r\n' < release/package-name.txt)
+    adb shell "cat /data/local/tmp/$manager_id-2000-user-service-logs/*.log" > device-test/final-service-startup.txt 2>/dev/null || true
+    python3 - <<'PYLOG'
+from pathlib import Path
+import re
+for line in Path('device-test/final-service-startup.txt').read_text(errors='replace').splitlines():
+    if any(word in line for word in ('shared-automation', 'Concurrency', 'Exception', 'Caused by:')):
+        print(re.sub(r'[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}(?:-[0-9]+)?', '<token>', line))
+PYLOG
+  fi
   tail -n 250 device-test/logcat.txt | grep -iE 'shizuku|probe|AndroidRuntime|exception' || true
 }
 trap cleanup EXIT
 adb install "$APK"
 adb install "$PROBE_APK"
+adb install "$PEER_APK"
 adb shell pm grant "$PROBE_ID" moe.shizuku.manager.permission.API_V23
+adb shell pm grant app.shizuku.connectionpeer moe.shizuku.manager.permission.API_V23
 python3 - "$APK" "$RUNNER_TEMP/shizuku-probe-starter" <<'PY'
 import sys, zipfile
 with zipfile.ZipFile(sys.argv[1]) as apk:

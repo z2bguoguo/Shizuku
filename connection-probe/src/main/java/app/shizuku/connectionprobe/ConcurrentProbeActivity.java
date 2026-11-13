@@ -70,7 +70,9 @@ public class ConcurrentProbeActivity extends Activity {
             Thread.sleep(200);
             for(int i=0;i<5;i++)call(services[1],2,true);
             String stats = stats(services[1]);
-            if (stats.contains("gesturesFailed=0") == false) throw new IllegalStateException("Gesture failures: " + stats);
+            if (!stats.contains("gesturesFailed=0") || !java.util.regex.Pattern.compile("gesturesCompleted=[1-9][0-9]*").matcher(stats).find()) {
+                throw new IllegalStateException("Gesture coordination was not exercised successfully: " + stats);
+            }
             write("concurrent-result.txt","PASS independentUid="+android.os.Process.myUid()+" fourThreads=48reads survivingClient=5reads\n"+stats);
         }catch(Throwable error){write("concurrent-result.txt","FAIL "+android.util.Log.getStackTraceString(error));}
         finally{workers.shutdownNow();}

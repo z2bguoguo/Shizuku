@@ -63,7 +63,11 @@ public final class AutomationClient {
             try { return method.invoke(delegate, args); }
             catch (InvocationTargetException error) { throw error.getCause(); }
         });
-        Binder manager = new Binder();
+        Binder manager = new Binder() {
+            @Override protected boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
+                return original.transact(code, data, reply, flags);
+            }
+        };
         manager.attachInterface((IInterface) proxy, type.getName());
         synchronized (cache) { cache.put("accessibility", manager); }
         hub = broker;

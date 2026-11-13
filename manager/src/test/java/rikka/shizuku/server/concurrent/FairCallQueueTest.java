@@ -64,4 +64,20 @@ public class FairCallQueueTest {
             assertEquals(java.util.Arrays.asList("A1","B1","A2","A3"),order);
         }finally{release.countDown();workers.shutdownNow();}
     }
+    @Test public void disconnectedCallerLosesItsQueuedWork() throws Exception {
+        FairCallQueue queue=new FairCallQueue();ExecutorService workers=Executors.newFixedThreadPool(2);
+        CountDownLatch entered=new CountDownLatch(1),release=new CountDownLatch(1);AtomicInteger effects=new AtomicInteger();
+        try {
+            var first=workers.submit(()->queue.call("ui","holder",2000,()->{entered.countDown();release.await();return 0;}));
+            assertTrue(entered.await(1,TimeUnit.SECONDS));
+            var cancelled=workers.submit(()->queue.call("ui","gone",2000,()->effects.incrementAndGet()));
+            long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(1);
+            while(!queue.diagnostics().contains("waiting=1 ")&&System.nanoTime()<until)Thread.yield();
+            assertTrue(queue.diagnostics(),queue.diagnostics().contains("waiting=1 "));
+            queue.cancel("gone");release.countDown();first.get(2,TimeUnit.SECONDS);
+            try{cancelled.get(2,TimeUnit.SECONDS);fail();}catch(java.util.concurrent.ExecutionException expected){assertTrue(expected.getCause() instanceof IllegalStateException);}
+            assertEquals(0,effects.get());
+        } finally {release.countDown();workers.shutdownNow();}
+    }
+
 }

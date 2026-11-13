@@ -3,8 +3,6 @@ set -euo pipefail
 PEER_APK=$1
 PRIMARY=app.shizuku.connectionprobe
 PEER=app.shizuku.connectionpeer
-adb install "$PEER_APK"
-adb shell pm grant "$PEER" moe.shizuku.manager.permission.API_V23
 for app in "$PEER" "$PRIMARY"; do
   adb shell am start -W -n "$app/app.shizuku.connectionprobe.ConcurrentProbeActivity"
   ready=""
