@@ -43,8 +43,16 @@ public final class AutomationHub extends Binder {
 
     private final class Subscriber implements IBinder.DeathRecipient {
         final IBinder client; AccessibilityServiceInfo info;
+        final int sdkUid;
+        final Runnable sdkPermission;
         final Channel channel; boolean initialized;
-        Subscriber(IBinder client, AccessibilityServiceInfo info) { this.client = client; this.info = info; this.channel = new Channel(this); }
+        Subscriber(IBinder client, AccessibilityServiceInfo info, int sdkUid, Runnable sdkPermission) {
+            this.client = client;
+            this.info = info;
+            this.sdkUid = sdkUid;
+            this.sdkPermission = sdkPermission;
+            this.channel = new Channel(this);
+        }
         @Override public void binderDied() { try { unregister(client); } catch (Exception error) { android.util.Log.w("AutomationHub", "client cleanup failed", error); } }
     }
     private static final class Gesture {
@@ -94,15 +102,19 @@ public final class AutomationHub extends Binder {
         if (result != null) result.packageNames = null; // UiAutomation receives all windows; client filtering remains local.
         return result;
     }
-    private void register(IBinder binder, AccessibilityServiceInfo info, int user, int flags) throws Exception {
+    private void register(IBinder binder, AccessibilityServiceInfo info, int user, int flags, int sdkUid, Runnable sdkPermission) throws Exception {
         control.lockInterruptibly();
         Subscriber subscriber = null;
         try {
             synchronized (state) {
-                if (clients.containsKey(binder)) return;
+                Subscriber existing = clients.get(binder);
+                if (existing != null) {
+                    if (existing.sdkUid != sdkUid) throw new SecurityException("Automation callback belongs to another caller");
+                    return;
+                }
                 if (clients.size() >= 32) throw new IllegalStateException("Too many automation clients");
                 if (registered && userId != user) throw new IllegalStateException("Concurrent automation currently requires the same Android user");
-                subscriber = new Subscriber(binder, copy(info));
+                subscriber = new Subscriber(binder, copy(info), sdkUid, sdkPermission);
                 binder.linkToDeath(subscriber, 0); clients.put(binder, subscriber);
             }
             if (!registered) {
@@ -198,6 +210,50 @@ public final class AutomationHub extends Binder {
             return operation.call();
         });
     }
+    /** Called only after the main SDK endpoint has checked the app's permission. */
+    public boolean dispatchSdkRegistration(IBinder target, int code, Parcel request,
+                                           Parcel reply, int uid, Runnable permission) throws Exception {
+        if (android.os.Build.VERSION.SDK_INT < 34 || reply == null
+                || !target.equals(ServiceManager.getService("accessibility"))) return false;
+        String descriptor = "android.view.accessibility.IAccessibilityManager";
+        String method = ResourcePolicy.method(descriptor, code);
+        boolean adding = "registerUiTestAutomationService".equals(method);
+        if (!adding && !"unregisterUiTestAutomationService".equals(method)) return false;
+        request.setDataPosition(0);
+        request.enforceInterface(descriptor);
+        IBinder lifetime = adding ? request.readStrongBinder() : null;
+        IBinder callback = request.readStrongBinder();
+        if (callback == null) throw new IllegalArgumentException("Missing automation callback");
+        long identity = Binder.clearCallingIdentity();
+        try {
+            if (adding) {
+                if (lifetime == null || !lifetime.isBinderAlive()) {
+                    throw new IllegalArgumentException("Missing live automation owner");
+                }
+                if (request.readInt() == 0) throw new IllegalArgumentException("Missing automation service info");
+                AccessibilityServiceInfo info = AccessibilityServiceInfo.CREATOR.createFromParcel(request);
+                int user = request.readInt();
+                int flags = request.readInt();
+                if (user != uid / 100000) throw new SecurityException("Automation requires the caller's Android user");
+                if (request.dataAvail() != 0) throw new IllegalArgumentException("Unexpected automation arguments");
+                register(callback, info, user, flags, uid, permission);
+            } else {
+                control.lockInterruptibly();
+                try {
+                    synchronized (state) {
+                        Subscriber subscriber = clients.get(callback);
+                        if (subscriber != null && subscriber.sdkUid != uid) {
+                            throw new SecurityException("Automation callback belongs to another caller");
+                        }
+                    }
+                    unregister(callback);
+                } finally { control.unlock(); }
+            }
+            reply.writeNoException();
+            return true;
+        } finally { Binder.restoreCallingIdentity(identity); }
+    }
+
     @Override protected boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
         if (code == INTERFACE_TRANSACTION) return super.onTransact(code, data, reply, flags);
         enforcePrivilegedProcess();
@@ -208,7 +264,7 @@ public final class AutomationHub extends Binder {
             if (code == AutomationProtocol.REGISTER) {
                 IBinder client = data.readStrongBinder();
                 AccessibilityServiceInfo info = AccessibilityServiceInfo.CREATOR.createFromParcel(data);
-                register(client, info, data.readInt(), data.readInt());
+                register(client, info, data.readInt(), data.readInt(), -1, null);
                 reply.writeNoException(); return true;
             }
             if (code == AutomationProtocol.UNREGISTER) {
@@ -291,10 +347,14 @@ public final class AutomationHub extends Binder {
         Channel(Subscriber subscriber) { this.subscriber = subscriber; attachInterface(null, CONNECTION); }
         @Override protected boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
             if (code == INTERFACE_TRANSACTION) return super.onTransact(code, data, reply, flags);
-            enforcePrivilegedProcess();
+            if (subscriber.sdkPermission != null && Binder.getCallingUid() == subscriber.sdkUid) {
+                subscriber.sdkPermission.run();
+            } else {
+                enforcePrivilegedProcess();
+            }
             IBinder target;
             synchronized (state) {
-                if (!clients.containsKey(subscriber.client)) throw new IllegalStateException("Automation client disconnected");
+                if (clients.get(subscriber.client) != subscriber) throw new IllegalStateException("Automation client disconnected");
                 target = realConnection;
                 if (target == null) throw new IllegalStateException("Shared automation connection is not ready");
             }

@@ -517,6 +517,11 @@ public class ShizukuService extends Service<ShizukuUserServiceManager, ShizukuCl
             Parcel request = Parcel.obtain();
             try {
                 request.appendFrom(data, data.dataPosition(), data.dataAvail());
+                int uid = Binder.getCallingUid();
+                if (automationHub.dispatchSdkRegistration(target, targetCode, request, reply, uid, () -> {
+                    if (isSdkBlocked(uid)) throw new SecurityException("Shizuku access blocked");
+                    enforceCallingPermission("automation");
+                })) return true;
                 automationHub.route(target.getInterfaceDescriptor(), targetCode, caller, () -> {
                     long identity = Binder.clearCallingIdentity();
                     try { return target.transact(targetCode, request, reply, targetFlags); }

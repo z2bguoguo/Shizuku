@@ -26,6 +26,81 @@ public class ConcurrentProbeActivity extends Activity {
     private boolean started, running;
     private Object packageService;
     private java.lang.reflect.Method setComponent;
+    private static final String ACCESSIBILITY = "android.view.accessibility.IAccessibilityManager";
+    private static final String CALLBACK = "android.accessibilityservice.IAccessibilityServiceClient";
+    private static final String CHANNEL = "android.accessibilityservice.IAccessibilityServiceConnection";
+
+    private static void verifySdkAutomation() throws Exception {
+        org.lsposed.hiddenapibypass.HiddenApiBypass.addHiddenApiExemptions("");
+        IBinder platform = (IBinder) Class.forName("android.os.ServiceManager")
+                .getMethod("getService", String.class).invoke(null, "accessibility");
+        IBinder sdk = new rikka.shizuku.ShizukuBinderWrapper(platform);
+        CountDownLatch initialized = new CountDownLatch(1);
+        AtomicReference<IBinder> channel = new AtomicReference<>();
+        int init = transaction(CALLBACK, "init");
+        IBinder callback = new android.os.Binder() {
+            @Override protected boolean onTransact(int code, Parcel data, Parcel reply, int flags) {
+                if (code == init) {
+                    data.enforceInterface(CALLBACK);
+                    channel.set(data.readStrongBinder());
+                    initialized.countDown();
+                }
+                return true;
+            }
+        };
+        IBinder owner = new android.os.Binder();
+        Parcel request = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            request.writeInterfaceToken(ACCESSIBILITY);
+            request.writeStrongBinder(owner);
+            request.writeStrongBinder(callback);
+            request.writeInt(1);
+            android.accessibilityservice.AccessibilityServiceInfo info =
+                    new android.accessibilityservice.AccessibilityServiceInfo();
+            info.eventTypes = android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
+            info.feedbackType = android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_GENERIC;
+            info.writeToParcel(request, 0);
+            request.writeInt(0);
+            request.writeInt(1);
+            sdk.transact(transaction(ACCESSIBILITY, "registerUiTestAutomationService"), request, reply, 0);
+            reply.readException();
+            try {
+                if (!initialized.await(3, TimeUnit.SECONDS) || channel.get() == null) {
+                    throw new IllegalStateException("SDK automation callback did not initialize");
+                }
+                request.setDataSize(0);
+                request.setDataPosition(0);
+                reply.setDataSize(0);
+                reply.setDataPosition(0);
+                request.writeInterfaceToken(CHANNEL);
+                if (!channel.get().transact(transaction(CHANNEL, "getServiceInfo"), request, reply, 0)) {
+                    throw new IllegalStateException("SDK automation channel rejected its caller");
+                }
+                reply.readException();
+                if (reply.readInt() == 0) throw new IllegalStateException("Missing shared service info");
+            } finally {
+                request.setDataSize(0);
+                request.setDataPosition(0);
+                reply.setDataSize(0);
+                reply.setDataPosition(0);
+                request.writeInterfaceToken(ACCESSIBILITY);
+                request.writeStrongBinder(callback);
+                sdk.transact(transaction(ACCESSIBILITY, "unregisterUiTestAutomationService"), request, reply, 0);
+                reply.readException();
+            }
+        } finally {
+            request.recycle();
+            reply.recycle();
+        }
+    }
+
+    private static int transaction(String descriptor, String name) throws Exception {
+        java.lang.reflect.Field field = Class.forName(descriptor + "$Stub")
+                .getDeclaredField("TRANSACTION_" + name);
+        field.setAccessible(true);
+        return field.getInt(null);
+    }
+
     private void packageMutation() throws Exception {
         android.content.ComponentName target = new android.content.ComponentName(getPackageName(), QueueTargetActivity.class.getName());
         setComponent.invoke(packageService, target, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
@@ -85,6 +160,8 @@ public class ConcurrentProbeActivity extends Activity {
         ExecutorService workers=Executors.newFixedThreadPool(4);AtomicReference<Throwable> failed=new AtomicReference<>();
         try{
             if(!ready.await(15,TimeUnit.SECONDS))throw new IllegalStateException("Clients not ready");
+            verifySdkAutomation();
+            call(services[1], 2, true);
             preparePackageService();
             CountDownLatch complete=new CountDownLatch(4);
             for(int task=0;task<4;task++){final int index=task%2;workers.execute(()->{
